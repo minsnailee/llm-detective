@@ -23,6 +23,7 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/users/signup", "/api/users/login", "/api/users/me", "/api/users/logout").permitAll()
+                .requestMatchers("/api/nlp/**").permitAll()
                 .anyRequest().authenticated()
             )
             .formLogin(AbstractHttpConfigurer::disable)
@@ -44,3 +45,5 @@ public class SecurityConfig {
         return source;
     }
 }
+
+

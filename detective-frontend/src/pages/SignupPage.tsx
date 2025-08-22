@@ -7,29 +7,20 @@ export default function SignupPage() {
     const [f, setF] = useState({ email: "", password: "", nickname: "" });
     const [msg, setMsg] = useState<string>("");
 
-    const submit = async (e: any) => {
+    const submit = (e: any) => {
         e.preventDefault();
         setMsg("");
-        try {
-            await api.post("/users/signup", f);
-            setMsg("가입 완료! 로그인 페이지로 이동합니다.");
-            nav("/login");
-        } catch (e: any) {
-            setMsg("이미 가입된 이메일일 수 있어요.");
-        }
+        api.post("/users/signup", f)
+            .then(() => {
+                setMsg("가입 완료! 로그인 페이지로 이동합니다.");
+                nav("/login");
+            })
+            .catch((e: any) => {
+                setMsg("이미 가입된 이메일일 수 있어요.");
+            });
     };
 
-    // const submit = async (e: any) => {
-    //     e.preventDefault();
-    //     setMsg("");
-    //     try {
-    //         await api.post("/users/signup", f);
-    //         setMsg("가입 완료! 로그인 페이지로 이동합니다.");
-    //         nav("/login");
-    //     } catch (e: any) {
-    //         setMsg("이미 가입된 이메일일 수 있어요.");
-    //     }
-    // };
+    
 
     return (
         <form onSubmit={submit} style={{ display: "grid", gap: 8 }}>

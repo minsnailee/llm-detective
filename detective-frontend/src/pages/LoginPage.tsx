@@ -10,19 +10,20 @@ export default function LoginPage() {
     const [password, setPassword] = useState("");
     const [err, setErr] = useState("");
 
-    const submit = async (e: any) => {
+    const submit = (e: any) => {
         e.preventDefault();
         setErr("");
-        try {
-            const { data } = await api.post("/users/login", {
-                email,
-                password,
+        api.post("/users/login", {
+            email,
+            password,
+        })
+            .then(({ data }) => {
+                set({ user: data }); // 지금은 세션 기반이라 token 없음
+                nav("/");
+            })
+            .catch((e: any) => {
+                setErr("이메일 또는 비밀번호가 올바르지 않습니다.");
             });
-            set({ user: data }); // 지금은 세션 기반이라 token 없음
-            nav("/");
-        } catch (e: any) {
-            setErr("이메일 또는 비밀번호가 올바르지 않습니다.");
-        }
     };
 
     return (
