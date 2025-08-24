@@ -14,12 +14,14 @@ public class ScenarioService {
 
     private final ScenarioRepository scenarioRepository;
 
+    // 모든 시나리오 조회
     public List<ScenarioResponse> getAllScenarios() {
         return scenarioRepository.findAll().stream()
                 .map(ScenarioResponse::fromEntity)
                 .collect(Collectors.toList());
     }
 
+    // 단일 시나리오 조회
     public ScenarioResponse getScenarioById(Integer id) {
         return scenarioRepository.findById(id)
                 .map(ScenarioResponse::fromEntity)

@@ -13,6 +13,7 @@ public class ScenarioResponse {
     private String scenTitle;
     private String scenSummary;
     private Integer scenLevel;
+    private String contentJson;
 
     public static ScenarioResponse fromEntity(Scenario s) {
         return ScenarioResponse.builder()
@@ -20,6 +21,7 @@ public class ScenarioResponse {
                 .scenTitle(s.getScenTitle())
                 .scenSummary(s.getScenSummary())
                 .scenLevel(s.getScenLevel())
+                .contentJson(s.getContentJson())
                 .build();
     }
 }

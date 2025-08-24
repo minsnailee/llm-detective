@@ -7,6 +7,7 @@ const LobbyPage = () => <div>Lobby</div>;
 // const ScenarioSelectPage = () => <div>Scenario Select</div>;
 import ScenarioSelectPage from "../../pages/ScenarioSelectPage"
 import GamePlayPage from "../../pages/GamePlayPage";
+import ResultPage from "../../pages/ResultPage";
 import MyPage from "../../pages/MyPage";
 import LoginPage from "../../pages/LoginPage";
 import SignupPage from "../../pages/SignupPage";
@@ -20,6 +21,7 @@ export const router = createBrowserRouter([
             { path: "/", element: <LobbyPage /> },
             { path: "/scenarios", element: <ScenarioSelectPage /> },
             { path: "/play/:scenarioId", element: <GamePlayPage /> },
+            { path: "/play/:scenarioId/result", element: <ResultPage /> },
             { path: "/my", element: <MyPage /> },
         ],
     },

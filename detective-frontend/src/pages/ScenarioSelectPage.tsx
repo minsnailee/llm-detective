@@ -2,11 +2,9 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../shared/api/client";
 
-// 백엔드에서 내려주는 JSON 구조에 맞춰 camelCase로 정의
 interface Scenario {
   scenIdx: number;
   scenTitle: string;
-  scenSummary: string;
   scenLevel: number;
 }
 
@@ -18,7 +16,7 @@ export default function ScenarioSelectPage() {
     const fetchScenarios = async () => {
       try {
         const res = await api.get<Scenario[]>("/scenarios");
-        console.log("시나리오 응답:", res.data); // 응답 확인용
+        console.log("시나리오 응답:", res.data);
         setScenarios(res.data);
       } catch (err) {
         console.error("시나리오 목록 불러오기 실패:", err);
@@ -44,7 +42,6 @@ export default function ScenarioSelectPage() {
             }}
           >
             <h3>{s.scenTitle}</h3>
-            <p style={{ whiteSpace: "pre-line" }}>{s.scenSummary}</p>
             <small>난이도: {s.scenLevel}</small>
           </div>
         ))}
