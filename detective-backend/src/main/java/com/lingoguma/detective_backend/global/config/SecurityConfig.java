@@ -38,7 +38,7 @@ public class SecurityConfig {
         config.setAllowedOrigins(List.of("http://localhost:5173")); // 프론트엔드 개발 서버 주소
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
-        config.setAllowCredentials(true);
+        config.setAllowCredentials(true); // 브라우저가 쿠키 붙이도록 허용
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config); // 모든 경로에 대해 CORS 설정 적용

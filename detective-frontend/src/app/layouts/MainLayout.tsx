@@ -1,13 +1,29 @@
 import { Outlet, Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../store/auth.store";
+import { useEffect } from "react";
+import { api } from "../../shared/api/client";
 
 export default function MainLayout() {
-    const { token, user, logout } = useAuth();
+    const { user, set, logout } = useAuth();
     const nav = useNavigate();
 
+    useEffect(() => {
+        const me = async () => {
+            try {
+                const { data } = await api.get("/users/me");
+                set({ user: data });
+            } catch (e) {
+                // not login
+            }
+        };
+        me();
+    }, [set]);
+
     const handleLogout = () => {
-        logout();
-        // nav("/login"); // 로그아웃 시 로그인 페이지로 이동
+        api.post("/users/logout").finally(() => {
+            logout();
+            nav("/login");
+        });
     };
 
     return (
@@ -19,7 +35,7 @@ export default function MainLayout() {
                 {user ? (
                     <>
                         <span style={{ marginLeft: 8 }}>
-                            {user?.nickname ?? "User"}님
+                            {user?.nickname ?? "User"}({user?.id})
                         </span>
                         <button
                             onClick={handleLogout}

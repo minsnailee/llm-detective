@@ -2,6 +2,7 @@ package com.lingoguma.detective_backend.user.controller;
 
 import com.lingoguma.detective_backend.user.dto.LoginRequest;
 import com.lingoguma.detective_backend.user.dto.SignUpRequest;
+import com.lingoguma.detective_backend.user.dto.UserResponse;
 import com.lingoguma.detective_backend.user.entity.User;
 import com.lingoguma.detective_backend.user.service.UserService;
 
@@ -36,12 +37,15 @@ public class UserController {
      */
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest request, HttpSession session) {
-        User user = userService.login(request.getEmail(), request.getPassword());
+        User user = userService.login(request.getId(), request.getPassword());
 
         // 로그인 성공 시 세션에 사용자 정보 저장
         session.setAttribute("user", user);
 
-        return ResponseEntity.ok("로그인 성공");
+        // return ResponseEntity.ok(user);
+        
+        // 민감 정보 제거 후 DTO로 응답
+        return ResponseEntity.ok(UserResponse.from(user));
     }
 
     // 로그인 상태 확인용 API
@@ -53,7 +57,10 @@ public class UserController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("로그인이 필요합니다.");
         }
 
-        return ResponseEntity.ok(user.getNickname() + "님 로그인 중입니다.");
+        // return ResponseEntity.ok(user);
+
+        // 민감 정보 제거 후 DTO로 응답
+        return ResponseEntity.ok(UserResponse.from(user));
     }
 
     // 로그아웃 처리

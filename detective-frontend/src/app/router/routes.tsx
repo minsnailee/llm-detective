@@ -9,6 +9,7 @@ import GamePlayPage from "../../pages/GamePlayPage";
 const MyPage = () => <div>My Page</div>;
 import LoginPage from "../../pages/LoginPage";
 import SignupPage from "../../pages/SignupPage";
+import SignupCompletePage from "../../pages/SignupCompletePage";
 const AdminDashboardPage = () => <div>Admin</div>;
 
 export const router = createBrowserRouter([
@@ -26,6 +27,7 @@ export const router = createBrowserRouter([
         children: [
             { path: "/login", element: <LoginPage /> },
             { path: "/signup", element: <SignupPage /> },
+            { path: "/signup/complete", element: <SignupCompletePage /> },
         ],
     },
     {
