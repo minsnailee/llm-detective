@@ -35,10 +35,13 @@ export default function ResultPage() {
       }),
     };
 
+    console.log("추리 결과 제출 payload:", payload);
+
     try {
-      await api.post("/game/result", payload);
+      const res = await api.post("/game/result", payload);
       alert("추리 결과가 제출되었습니다!");
       navigate("/scenarios"); // 결과 제출 후 시나리오 목록으로 이동
+      console.log("서버 응답:", res.data);
     } catch (err) {
       console.error("결과 제출 실패:", err);
       alert("제출 중 오류가 발생했습니다.");
