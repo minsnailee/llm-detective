@@ -4,7 +4,8 @@ import AuthLayout from "../layouts/AuthLayout";
 import AdminLayout from "../layouts/AdminLayout";
 
 const LobbyPage = () => <div>Lobby</div>;
-const ScenarioSelectPage = () => <div>Scenario Select</div>;
+// const ScenarioSelectPage = () => <div>Scenario Select</div>;
+import ScenarioSelectPage from "../../pages/ScenarioSelectPage"
 import GamePlayPage from "../../pages/GamePlayPage";
 import MyPage from "../../pages/MyPage";
 import LoginPage from "../../pages/LoginPage";
