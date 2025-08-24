@@ -6,7 +6,7 @@ import AdminLayout from "../layouts/AdminLayout";
 const LobbyPage = () => <div>Lobby</div>;
 const ScenarioSelectPage = () => <div>Scenario Select</div>;
 import GamePlayPage from "../../pages/GamePlayPage";
-const MyPage = () => <div>My Page</div>;
+import MyPage from "../../pages/MyPage";
 import LoginPage from "../../pages/LoginPage";
 import SignupPage from "../../pages/SignupPage";
 import SignupCompletePage from "../../pages/SignupCompletePage";
@@ -19,7 +19,7 @@ export const router = createBrowserRouter([
             { path: "/", element: <LobbyPage /> },
             { path: "/scenarios", element: <ScenarioSelectPage /> },
             { path: "/play/:scenarioId", element: <GamePlayPage /> },
-            { path: "/me", element: <MyPage /> },
+            { path: "/my", element: <MyPage /> },
         ],
     },
     {

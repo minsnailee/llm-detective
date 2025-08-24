@@ -6,7 +6,7 @@ import { Link, useNavigate } from "react-router-dom";
 export default function LoginPage() {
     const nav = useNavigate();
     const set = useAuth((s) => s.set);
-    const [id, setId] = useState("");
+    const [userId, setId] = useState("");
     const [password, setPassword] = useState("");
     const [err, setErr] = useState("");
 
@@ -14,7 +14,7 @@ export default function LoginPage() {
         e.preventDefault();
         setErr("");
         api.post("/users/login", {
-            id,
+            userId,
             password,
         })
             .then(({ data }) => {
@@ -31,7 +31,7 @@ export default function LoginPage() {
             <h2>로그인</h2>
             <input
                 placeholder="아이디"
-                value={id}
+                value={userId}
                 onChange={(e) => setId(e.target.value)}
             />
             <input

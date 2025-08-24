@@ -11,14 +11,14 @@ import lombok.Getter;
 @AllArgsConstructor
 public class UserResponse {
     private Long userIdx;
-    private String id;        // 로그인 아이디
+    private String userId;        // 로그인 아이디
     private String nickname;  // 닉네임
     private String role;      // 권한
 
     public static UserResponse from(User user) {
         return new UserResponse(
             user.getUserIdx(),
-            user.getId(),
+            user.getUserId(),
             user.getNickname(),
             user.getRole().name()
         );

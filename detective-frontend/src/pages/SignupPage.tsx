@@ -4,7 +4,13 @@ import { api } from "../shared/api/client";
 
 export default function SignupPage() {
     const nav = useNavigate();
-    const [f, setF] = useState({ id: "", email: "", password: "", passwordConfirm: "", nickname: "" });
+    const [f, setF] = useState({
+        userId: "",
+        email: "",
+        password: "",
+        passwordConfirm: "",
+        nickname: ""
+    });
     const [msg, setMsg] = useState<string>("");
 
     const submit = (e: any) => {
@@ -17,13 +23,15 @@ export default function SignupPage() {
         }
 
         api.post("/users/signup", {
-            id: f.id,
+            userId: f.userId,
             email: f.email,
             password: f.password,
             nickname: f.nickname
         })
             .then(() => {
-                nav('/signup/complete', { state: { id: f.id, nickname: f.nickname } });
+                nav("/signup/complete", {
+                    state: { userId: f.userId, nickname: f.nickname }
+                });
             })
             .catch((e: any) => {
                 if (e.response && e.response.data) {
@@ -35,12 +43,15 @@ export default function SignupPage() {
     };
 
     return (
-        <form onSubmit={submit} style={{ display: "grid", gap: 8, width: 300, margin: "auto" }}>
+        <form
+            onSubmit={submit}
+            style={{ display: "grid", gap: 8, width: 300, margin: "auto" }}
+        >
             <h2>회원가입</h2>
             <input
                 placeholder="아이디"
-                value={f.id}
-                onChange={(e) => setF({ ...f, id: e.target.value })}
+                value={f.userId}
+                onChange={(e) => setF({ ...f, userId: e.target.value })}
             />
             <input
                 placeholder="이메일"
@@ -64,7 +75,9 @@ export default function SignupPage() {
                 value={f.passwordConfirm}
                 onChange={(e) => setF({ ...f, passwordConfirm: e.target.value })}
             />
-            {msg && <div style={{ color: msg.includes("완료") ? "blue" : "red" }}>{msg}</div>}
+            {msg && (
+                <div style={{ color: msg.includes("완료") ? "blue" : "red" }}>{msg}</div>
+            )}
             <button>가입</button>
         </form>
     );

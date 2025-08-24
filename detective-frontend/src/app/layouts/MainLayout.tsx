@@ -30,12 +30,12 @@ export default function MainLayout() {
         <div>
             <header style={{ padding: 12, borderBottom: "1px solid #eee" }}>
                 <Link to="/">Lobby</Link> ·
-                <Link to="/scenarios">Scenarios</Link> ·<Link to="/me">My</Link>{" "}
+                <Link to="/scenarios">Scenarios</Link> ·                <Link to="/my">My</Link>
                 ·
                 {user ? (
                     <>
                         <span style={{ marginLeft: 8 }}>
-                            {user?.nickname ?? "User"}({user?.id})
+                            {user?.nickname ?? "User"}({user?.userId})
                         </span>
                         <button
                             onClick={handleLogout}
