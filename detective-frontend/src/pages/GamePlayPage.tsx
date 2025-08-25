@@ -124,7 +124,6 @@ export default function GamePlayPage() {
                         border: "1px solid #ccc",
                         padding: "10px",
                         marginTop: "10px",
-                        background: "#f9f9f9",
                     }}
                 >
                     <h3>{scenario.scenTitle}</h3>
@@ -174,7 +173,6 @@ export default function GamePlayPage() {
                             padding: "10px 15px",
                             border: "1px solid #000",
                             borderRadius: "15px",
-                            background: "#fff",
                         }}
                     >
                         {answer}

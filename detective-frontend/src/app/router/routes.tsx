@@ -9,6 +9,7 @@ const LobbyPage = () => <div>Lobby</div>;
 import ScenarioSelectPage from "../../pages/ScenarioSelectPage";
 import GamePlayPage from "../../pages/GamePlayPage";
 import ResultPage from "../../pages/ResultPage";
+import AnalysisPage from "../../pages/AnalysisPage";
 import MyPage from "../../pages/MyPage";
 import LoginPage from "../../pages/LoginPage";
 import SignupPage from "../../pages/SignupPage";
@@ -22,8 +23,8 @@ export const router = createBrowserRouter([
             { path: "/", element: <LobbyPage /> },
             { path: "/scenarios", element: <ScenarioSelectPage /> },
             { path: "/play/:scenarioId", element: <GamePlayPage /> },
-
             { path: "/play/:scenarioId/result", element: <ResultPage /> },
+            { path: "/play/:scenarioId/analysis", element: <AnalysisPage /> },
             { path: "/my", element: <MyPage /> },
         ],
     },
