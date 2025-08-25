@@ -9,6 +9,8 @@ import {
     Tooltip,
     Legend,
 } from "chart.js";
+import { api } from "../shared/api/client";
+import { useState } from "react";
 
 // Chart.js 레이더 차트 등록
 ChartJS.register(
@@ -25,7 +27,7 @@ export default function AnalysisPage() {
     const location = useLocation();
     const navigate = useNavigate();
 
-    // ResultPage에서 전달받은 데이터
+    // ✅ state로 전달받은 값 (없으면 기본값)
     const { culprit, isCorrect, skills } = (location.state as any) || {
         culprit: "AI 용의자 2",
         isCorrect: false,
@@ -38,7 +40,37 @@ export default function AnalysisPage() {
         },
     };
 
-    // Chart.js 데이터
+    // ✅ 쿼리스트링에서 sessionId 추출
+    const sessionId = Number(new URLSearchParams(location.search).get("sessionId"));
+
+    // 예시: userIdx, scenIdx는 props/state/전역관리에서 가져오면 더 좋아요
+    const userIdx = 1;
+    const scenIdx = Number(scenarioId);
+
+    // ✅ 제출 함수
+    const submitResult = async () => {
+        const result = {
+            sessionId,
+            scenIdx,
+            userIdx,
+            answerJson: {
+                culprit,
+                when: "3시",
+                how: "둔기로 가격",
+                why: "질투심",
+            },
+            skillsJson: skills,
+        };
+
+        try {
+            await api.post("/game/result", result);
+            alert("결과가 저장되었습니다!");
+        } catch (err) {
+            console.error("결과 제출 실패:", err);
+        }
+    };
+
+    // ✅ 차트 데이터
     const data = {
         labels: ["논리력", "창의력", "집중력", "다양성", "깊이"],
         datasets: [
@@ -84,6 +116,13 @@ export default function AnalysisPage() {
                 <h3>추리 능력 분석</h3>
                 <Radar data={data} options={options} />
             </div>
+
+            <button
+                style={{ marginTop: "20px", marginRight: "10px" }}
+                onClick={submitResult}
+            >
+                추리 결과 제출
+            </button>
 
             <button
                 style={{ marginTop: "20px" }}

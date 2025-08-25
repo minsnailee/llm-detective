@@ -33,7 +33,18 @@ export default function ScenarioSelectPage() {
         {scenarios.map((s) => (
           <div
             key={s.scenIdx}
-            onClick={() => navigate(`/play/${s.scenIdx}`)}
+            // ✅ 수정: 클릭 시 세션을 시작하고 sessionId를 쿼리스트링으로 넘겨줌
+            onClick={async () => {
+              try {
+                const res = await api.post<number>(
+                  `/game/session/start?scenIdx=${s.scenIdx}&userIdx=1` // 임시 userIdx=1
+                );
+                const sessionId = res.data;
+                navigate(`/play/${s.scenIdx}?sessionId=${sessionId}`);
+              } catch (err) {
+                console.error("세션 시작 실패:", err);
+              }
+            }}
             style={{
               border: "1px solid #ccc",
               padding: "16px",

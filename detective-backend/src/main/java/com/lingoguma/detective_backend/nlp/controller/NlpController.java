@@ -2,7 +2,7 @@ package com.lingoguma.detective_backend.nlp.controller;
 
 import com.lingoguma.detective_backend.nlp.dto.NlpScoreRequest;
 import com.lingoguma.detective_backend.nlp.dto.NlpScoreResponse;
-import com.lingoguma.detective_backend.nlp.service.NlpClient;
+import com.lingoguma.detective_backend.nlp.service.GameNlpClient;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -17,8 +17,9 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class NlpController {
 
-    private final NlpClient nlpClient;
+    private final GameNlpClient nlpClient;
 
+    // NLP 점수 분석 → FastAPI /nlp/score 호출
     @PostMapping("/score")
     public ResponseEntity<NlpScoreResponse> score(@RequestBody NlpScoreRequest req) {
         NlpScoreResponse result = nlpClient.score(req);

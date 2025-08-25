@@ -3,23 +3,22 @@ package com.lingoguma.detective_backend.game.dto;
 import com.lingoguma.detective_backend.game.entity.GameResult;
 import lombok.*;
 
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
+@Getter @Setter
+@NoArgsConstructor @AllArgsConstructor @Builder
 public class GameResultResponse {
     private Long resultId;
-    private Integer scenIdx;
-    private Long userId;
+    private Long sessionId;
+    private Long scenIdx;
+    private Long userIdx;
     private String answerJson;
     private String skillsJson;
 
     public static GameResultResponse fromEntity(GameResult entity) {
         return GameResultResponse.builder()
                 .resultId(entity.getResultId())
+                .sessionId(entity.getSessionId())
                 .scenIdx(entity.getScenIdx())
-                .userId(entity.getUserId())
+                .userIdx(entity.getUserIdx())
                 .answerJson(entity.getAnswerJson())
                 .skillsJson(entity.getSkillsJson())
                 .build();

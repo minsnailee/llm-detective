@@ -1,110 +1,121 @@
 import { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../shared/api/client";
 
 export default function ResultPage() {
-    const { scenarioId } = useParams();
-    const navigate = useNavigate();
+  const { scenarioId } = useParams();
+  const navigate = useNavigate();
 
-    const [selectedCulprit, setSelectedCulprit] = useState<string | null>(null);
-    const [when, setWhen] = useState("");
-    const [how, setHow] = useState("");
-    const [why, setWhy] = useState("");
+  const [selectedCulprit, setSelectedCulprit] = useState("");
+  const [whenText, setWhenText] = useState("");
+  const [howText, setHowText] = useState("");
+  const [whyText, setWhyText] = useState("");
 
-    const handleSubmit = async () => {
-        if (!selectedCulprit || !when || !how || !why) {
-            alert("모든 항목을 입력해주세요.");
-            return;
-        }
+  // 예시: 실제 로그인 연동되면 userId 가져오기
+  const userId = 1;
+  // 예시: 세션 ID도 /game/session/start 호출 후 받아와야 함
+  const sessionId = 1;
 
-        const payload = {
-            scenarioId: Number(scenarioId),
-            userId: 1, // TODO: 로그인 연동 후 대체
-            answerJson: JSON.stringify({
-                culprit: selectedCulprit,
-                when,
-                how,
-                why,
-            }),
-            // 지금은 더미 점수
-            skills: {
-                logic: 70,
-                creativity: 80,
-                focus: 65,
-                diversity: 60,
-                depth: 55,
-            },
-            isCorrect: selectedCulprit === "AI 용의자 2", // 정답 하드코딩
-        };
-
-        // 콘솔 로그 확인
-        console.log("추리 결과 제출 payload:", payload);
-
-        try {
-            await api.post("/game/result", payload);
-            navigate(`/play/${scenarioId}/analysis`, { state: payload });
-        } catch (err) {
-            console.error("결과 제출 실패:", err);
-            alert("제출 중 오류가 발생했습니다.");
-        }
+  const handleSubmit = async () => {
+    const payload = {
+      sessionId,                  // ✅ 세션 ID
+      scenIdx: Number(scenarioId), // ✅ DB 칼럼명에 맞춤 (scenIdx)
+      userIdx: userId,            // ✅ DB 칼럼명에 맞춤 (userIdx)
+      answerJson: {               // ✅ JSON.stringify 제거
+        culprit: selectedCulprit,
+        when: whenText,
+        how: howText,
+        why: whyText,
+      },
+      skills: {                   // NLP 점수 (임시 하드코딩, 나중에 교체)
+        logic: 70,
+        creativity: 75,
+        focus: 65,
+        diversity: 60,
+        depth: 55,
+      },
+      isCorrect: selectedCulprit === "AI 용의자 2", // 정답 여부 예시
     };
 
-    return (
-        <div style={{ padding: "20px" }}>
-            <h2>추리 결과 입력</h2>
+    console.log("추리 결과 제출 payload:", payload);
 
-            <div style={{ marginBottom: "20px" }}>
-                <h3>범인 선택</h3>
-                {["AI 용의자 1", "AI 용의자 2", "AI 용의자 3"].map(
-                    (name, idx) => (
-                        <label
-                            key={idx}
-                            style={{ display: "block", margin: "5px 0" }}
-                        >
-                            <input
-                                type="radio"
-                                name="culprit"
-                                value={name}
-                                checked={selectedCulprit === name}
-                                onChange={(e) =>
-                                    setSelectedCulprit(e.target.value)
-                                }
-                            />
-                            {name}
-                        </label>
-                    )
-                )}
-            </div>
+    try {
+      await api.post("/game/result", payload);
+      alert("결과가 저장되었습니다!");
+      navigate(`/play/${scenarioId}/analysis`, {
+        state: {
+          culprit: selectedCulprit,
+          isCorrect: payload.isCorrect,
+          skills: payload.skills,
+        },
+      });
+    } catch (err) {
+      console.error("결과 제출 실패:", err);
+    }
+  };
 
-            <div>
-                <h3>언제?</h3>
-                <textarea
-                    value={when}
-                    onChange={(e) => setWhen(e.target.value)}
-                    rows={2}
-                    style={{ width: "100%", marginBottom: "10px" }}
-                />
-            </div>
-            <div>
-                <h3>어떻게?</h3>
-                <textarea
-                    value={how}
-                    onChange={(e) => setHow(e.target.value)}
-                    rows={2}
-                    style={{ width: "100%", marginBottom: "10px" }}
-                />
-            </div>
-            <div>
-                <h3>왜?</h3>
-                <textarea
-                    value={why}
-                    onChange={(e) => setWhy(e.target.value)}
-                    rows={2}
-                    style={{ width: "100%", marginBottom: "10px" }}
-                />
-            </div>
+  return (
+    <div style={{ padding: "20px" }}>
+      <h2>추리 결과 제출</h2>
 
-            <button onClick={handleSubmit}>추리 결과 제출</button>
-        </div>
-    );
+      <div>
+        <p>범인을 선택하세요:</p>
+        <label>
+          <input
+            type="radio"
+            name="culprit"
+            value="AI 용의자 1"
+            onChange={(e) => setSelectedCulprit(e.target.value)}
+          />
+          AI 용의자 1
+        </label>
+        <label>
+          <input
+            type="radio"
+            name="culprit"
+            value="AI 용의자 2"
+            onChange={(e) => setSelectedCulprit(e.target.value)}
+          />
+          AI 용의자 2
+        </label>
+        <label>
+          <input
+            type="radio"
+            name="culprit"
+            value="AI 용의자 3"
+            onChange={(e) => setSelectedCulprit(e.target.value)}
+          />
+          AI 용의자 3
+        </label>
+      </div>
+
+      <div style={{ marginTop: "20px" }}>
+        <textarea
+          placeholder="언제?"
+          value={whenText}
+          onChange={(e) => setWhenText(e.target.value)}
+          style={{ display: "block", width: "100%", marginBottom: "10px" }}
+        />
+        <textarea
+          placeholder="어떻게?"
+          value={howText}
+          onChange={(e) => setHowText(e.target.value)}
+          style={{ display: "block", width: "100%", marginBottom: "10px" }}
+        />
+        <textarea
+          placeholder="왜?"
+          value={whyText}
+          onChange={(e) => setWhyText(e.target.value)}
+          style={{ display: "block", width: "100%", marginBottom: "10px" }}
+        />
+      </div>
+
+      <button
+        style={{ marginTop: "20px", padding: "10px 20px" }}
+        onClick={handleSubmit}
+      >
+        추리 결과 제출
+      </button>
+    </div>
+  );
 }

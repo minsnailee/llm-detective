@@ -1,5 +1,7 @@
 package com.lingoguma.detective_backend.nlp.service;
 
+import com.lingoguma.detective_backend.game.dto.NlpAskRequest;
+import com.lingoguma.detective_backend.game.dto.NlpAskResponse;
 import com.lingoguma.detective_backend.nlp.dto.NlpScoreRequest;
 import com.lingoguma.detective_backend.nlp.dto.NlpScoreResponse;
 import lombok.RequiredArgsConstructor;
@@ -14,7 +16,7 @@ import org.springframework.web.client.RestTemplate;
  */
 @Service
 @RequiredArgsConstructor
-public class NlpClient {
+public class GameNlpClient {
 
     private final RestTemplate restTemplate;
 
@@ -22,23 +24,29 @@ public class NlpClient {
     @Value("${nlp.base-url}")
     private String nlpBaseUrl;
 
-    /**
-     * 플레이어 질문(userText)을 FastAPI에 전달하고, 점수/키워드를 받아온다.
-     */
-    public NlpScoreResponse score(NlpScoreRequest req) {
-        String url = nlpBaseUrl + "/nlp/score";
-
+    // GPT 응답 (/nlp/ask)
+    public NlpAskResponse ask(NlpAskRequest req) {
+        String url = nlpBaseUrl + "/nlp/ask";
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<NlpAskRequest> entity = new HttpEntity<>(req, headers);
 
+        ResponseEntity<NlpAskResponse> resp = restTemplate.exchange(
+                url, HttpMethod.POST, entity, NlpAskResponse.class
+        );
+        return resp.getBody();
+    }
+
+    // NLP 점수 (/nlp/score)
+    public NlpScoreResponse score(NlpScoreRequest req) {
+        String url = nlpBaseUrl + "/nlp/score";
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
         HttpEntity<NlpScoreRequest> entity = new HttpEntity<>(req, headers);
 
-        // FastAPI 응답을 NlpScoreResponse로 역직렬화
         ResponseEntity<NlpScoreResponse> resp = restTemplate.exchange(
                 url, HttpMethod.POST, entity, NlpScoreResponse.class
         );
-
-        // 실제 서비스라면 null 체크/예외처리를 더 다듬자
         return resp.getBody();
     }
 }

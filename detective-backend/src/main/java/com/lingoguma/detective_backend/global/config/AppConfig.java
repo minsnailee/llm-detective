@@ -25,6 +25,7 @@ public class AppConfig {
         // 간단한 테스트용 RestTemplate
         return new RestTemplate();
     }
+    
 
     @Bean
     public DefaultCookieSerializer cookieSerializer() {
