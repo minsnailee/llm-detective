@@ -30,8 +30,8 @@ export default function MainLayout() {
         <div>
             <header style={{ padding: 12, borderBottom: "1px solid #eee" }}>
                 <Link to="/">Lobby</Link> ·
-                <Link to="/scenarios">Scenarios</Link> ·<Link to="/my">My</Link>{" "}
-                ·
+                <Link to="/scenarios">Scenarios</Link> ·<Link to="/my">My</Link>
+                · <Link to="/admin">admin</Link> ·
                 {user ? (
                     <>
                         <span style={{ marginLeft: 8 }}>
