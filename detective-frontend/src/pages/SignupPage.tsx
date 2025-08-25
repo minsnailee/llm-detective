@@ -4,44 +4,84 @@ import { api } from "../shared/api/client";
 
 export default function SignupPage() {
     const nav = useNavigate();
-    const [f, setF] = useState({ email: "", password: "", nickname: "" });
+    const [f, setF] = useState({
+        userId: "",
+        email: "",
+        password: "",
+        passwordConfirm: "",
+        nickname: "",
+    });
     const [msg, setMsg] = useState<string>("");
 
     const submit = (e: any) => {
         e.preventDefault();
         setMsg("");
-        api.post("/users/signup", f)
+
+        if (f.password !== f.passwordConfirm) {
+            setMsg("비밀번호가 일치하지 않습니다.");
+            return;
+        }
+
+        api.post("/users/signup", {
+            userId: f.userId,
+            email: f.email,
+            password: f.password,
+            nickname: f.nickname,
+        })
             .then(() => {
-                setMsg("가입 완료! 로그인 페이지로 이동합니다.");
-                nav("/login");
+                nav("/signup/complete", {
+                    state: { userId: f.userId, nickname: f.nickname },
+                });
             })
             .catch((e: any) => {
-                setMsg("이미 가입된 이메일일 수 있어요.");
+                if (e.response && e.response.data) {
+                    setMsg(e.response.data);
+                } else {
+                    setMsg("오류가 발생했습니다.");
+                }
             });
     };
 
-    
-
     return (
-        <form onSubmit={submit} style={{ display: "grid", gap: 8 }}>
+        <form
+            onSubmit={submit}
+            style={{ display: "grid", gap: 8, width: 300, margin: "auto" }}
+        >
             <h2>회원가입</h2>
             <input
-                placeholder="email"
+                placeholder="아이디"
+                value={f.userId}
+                onChange={(e) => setF({ ...f, userId: e.target.value })}
+            />
+            <input
+                placeholder="이메일"
                 value={f.email}
                 onChange={(e) => setF({ ...f, email: e.target.value })}
             />
             <input
-                placeholder="nickname"
+                placeholder="닉네임"
                 value={f.nickname}
                 onChange={(e) => setF({ ...f, nickname: e.target.value })}
             />
             <input
-                placeholder="password"
+                placeholder="비밀번호"
                 type="password"
                 value={f.password}
                 onChange={(e) => setF({ ...f, password: e.target.value })}
             />
-            {msg && <div>{msg}</div>}
+            <input
+                placeholder="비밀번호 확인"
+                type="password"
+                value={f.passwordConfirm}
+                onChange={(e) =>
+                    setF({ ...f, passwordConfirm: e.target.value })
+                }
+            />
+            {msg && (
+                <div style={{ color: msg.includes("완료") ? "blue" : "red" }}>
+                    {msg}
+                </div>
+            )}
             <button>가입</button>
         </form>
     );

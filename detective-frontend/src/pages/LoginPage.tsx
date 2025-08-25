@@ -6,7 +6,7 @@ import { Link, useNavigate } from "react-router-dom";
 export default function LoginPage() {
     const nav = useNavigate();
     const set = useAuth((s) => s.set);
-    const [email, setEmail] = useState("");
+    const [userId, setId] = useState("");
     const [password, setPassword] = useState("");
     const [err, setErr] = useState("");
 
@@ -14,7 +14,7 @@ export default function LoginPage() {
         e.preventDefault();
         setErr("");
         api.post("/users/login", {
-            email,
+            userId,
             password,
         })
             .then(({ data }) => {
@@ -22,7 +22,7 @@ export default function LoginPage() {
                 nav("/");
             })
             .catch((e: any) => {
-                setErr("이메일 또는 비밀번호가 올바르지 않습니다.");
+                setErr("아이디 또는 비밀번호가 올바르지 않습니다.");
             });
     };
 
@@ -30,12 +30,12 @@ export default function LoginPage() {
         <form onSubmit={submit} style={{ display: "grid", gap: 8 }}>
             <h2>로그인</h2>
             <input
-                placeholder="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                placeholder="아이디"
+                value={userId}
+                onChange={(e) => setId(e.target.value)}
             />
             <input
-                placeholder="password"
+                placeholder="비밀번호"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

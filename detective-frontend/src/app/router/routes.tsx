@@ -4,11 +4,15 @@ import AuthLayout from "../layouts/AuthLayout";
 import AdminLayout from "../layouts/AdminLayout";
 
 const LobbyPage = () => <div>Lobby</div>;
-const ScenarioSelectPage = () => <div>Scenario Select</div>;
+
+// const ScenarioSelectPage = () => <div>Scenario Select</div>;
+import ScenarioSelectPage from "../../pages/ScenarioSelectPage";
 import GamePlayPage from "../../pages/GamePlayPage";
-const MyPage = () => <div>My Page</div>;
+import ResultPage from "../../pages/ResultPage";
+import MyPage from "../../pages/MyPage";
 import LoginPage from "../../pages/LoginPage";
 import SignupPage from "../../pages/SignupPage";
+import SignupCompletePage from "../../pages/SignupCompletePage";
 const AdminDashboardPage = () => <div>Admin</div>;
 
 export const router = createBrowserRouter([
@@ -18,7 +22,9 @@ export const router = createBrowserRouter([
             { path: "/", element: <LobbyPage /> },
             { path: "/scenarios", element: <ScenarioSelectPage /> },
             { path: "/play/:scenarioId", element: <GamePlayPage /> },
-            { path: "/me", element: <MyPage /> },
+
+            { path: "/play/:scenarioId/result", element: <ResultPage /> },
+            { path: "/my", element: <MyPage /> },
         ],
     },
     {
@@ -26,6 +32,7 @@ export const router = createBrowserRouter([
         children: [
             { path: "/login", element: <LoginPage /> },
             { path: "/signup", element: <SignupPage /> },
+            { path: "/signup/complete", element: <SignupCompletePage /> },
         ],
     },
     {
