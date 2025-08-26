@@ -8,9 +8,9 @@ import java.util.Optional;
 /*
  *  User를 저장하고 조회
  */
-public interface UserRepository extends JpaRepository<User, Long> {
+public interface UserRepository extends JpaRepository<User, Integer> {
     Optional<User> findByEmail(String email); // 이메일 중복 체크용
     boolean existsByUserId(String userId); // 아이디 중복 체크용
     Optional<User> findByUserId(String userId); // 로그인 시 사용자 조회
-    Optional<User> findByUserIdx(Long userIdx); // userIdx 기반 조회
+    Optional<User> findByUserIdx(Integer userIdx); // userIdx 기반 조회
 }

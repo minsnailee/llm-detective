@@ -1,6 +1,5 @@
 package com.lingoguma.detective_backend.game.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lingoguma.detective_backend.game.dto.GameResultRequest;
 import lombok.RequiredArgsConstructor;
@@ -13,7 +12,10 @@ public class GameService {
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper = new ObjectMapper(); // JSON 변환용
 
-    // 세션 시작
+    /**
+     * 세션 시작 로직
+     * (컨트롤러에서 scenAccess 검증을 끝낸 뒤 호출됨)
+     */
     public Long startSession(Long scenIdx, Long userIdx) {
         String sql = "INSERT INTO game_sessions (scen_idx, user_idx, status, log_json) " +
                      "VALUES (?, ?, 'PLAYING', '{\"logs\":[]}')";
@@ -22,7 +24,9 @@ public class GameService {
         return jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
     }
 
-    // 게임 결과 저장
+    /**
+     * 게임 결과 저장
+     */
     public void saveResult(GameResultRequest req) {
         try {
             String answerJsonStr = objectMapper.writeValueAsString(req.getAnswerJson());

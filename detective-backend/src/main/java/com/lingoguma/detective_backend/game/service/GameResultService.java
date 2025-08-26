@@ -25,6 +25,7 @@ public class GameResultService {
                 .skillsJson(gson.toJson(req.getSkills()))     // ✅ req.getSkills()로 수정
                 .isCorrect(req.isCorrect())
                 .build();
+                
 
         return GameResultResponse.fromEntity(gameResultRepository.save(entity));
     }

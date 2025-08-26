@@ -6,10 +6,10 @@ import lombok.*;
 @Getter @Setter
 @NoArgsConstructor @AllArgsConstructor @Builder
 public class GameResultResponse {
-    private Long resultId;
-    private Long sessionId;
-    private Long scenIdx;
-    private Long userIdx;
+    private Integer resultId;
+    private Integer sessionId;
+    private Integer scenIdx;
+    private Integer userIdx;
     private String answerJson;
     private String skillsJson;
 

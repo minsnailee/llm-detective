@@ -15,7 +15,7 @@ public class Scenario {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Integer scenIdx;
+    private Integer scenIdx;   // ✅ int 기반 PK
 
     @Column(nullable = false, length = 225)
     private String scenTitle;
@@ -34,11 +34,21 @@ public class Scenario {
     private ScenStatus scenStatus;
 
     @Column(columnDefinition = "JSON")
-    private String contentJson;
+    private String contentJson;   // ✅ JSON 한 줄 저장
 
-    private Integer createdBy;
+    private Integer createdBy;    // 작성자 (users.user_idx FK)
 
     private LocalDateTime createdAt;
-
     private LocalDateTime updatedAt;
+
+    @PrePersist
+    protected void onCreate() {
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
 }

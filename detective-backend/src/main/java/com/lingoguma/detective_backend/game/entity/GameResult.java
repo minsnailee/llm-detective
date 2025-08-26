@@ -3,6 +3,8 @@ package com.lingoguma.detective_backend.game.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "game_results")
 @Getter @Setter
@@ -11,28 +13,71 @@ public class GameResult {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long resultId;
+    private Integer resultId;    // ✅ int 기반 PK
 
-    private Long sessionId;
-    private Long scenIdx;
-    private Long userIdx;
-
-    @Column(columnDefinition = "JSON")
-    private String answerJson;
+    private Integer sessionId;   // ✅ 세션 ID (값만 저장)
+    private Integer scenIdx;     // ✅ 시나리오 ID
+    private Integer userIdx;     // ✅ 유저 ID
 
     @Column(columnDefinition = "JSON")
-    private String skillsJson;
+    private String answerJson;   // ✅ 답변 JSON 한 줄
+
+    @Column(columnDefinition = "JSON")
+    private String skillsJson;   // ✅ 스킬 점수 JSON 한 줄
 
     private boolean isCorrect;
 
-    @Column(updatable = false, insertable = false,
-            columnDefinition = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
-    private java.sql.Timestamp createdAt;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 
-    @Column(updatable = false, insertable = false,
-            columnDefinition = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
-    private java.sql.Timestamp updatedAt;
+    @PrePersist
+    protected void onCreate() {
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
 }
+
+
+// package com.lingoguma.detective_backend.game.entity;
+
+// import jakarta.persistence.*;
+// import lombok.*;
+
+// @Entity
+// @Table(name = "game_results")
+// @Getter @Setter
+// @NoArgsConstructor @AllArgsConstructor @Builder
+// public class GameResult {
+
+//     @Id
+//     @GeneratedValue(strategy = GenerationType.IDENTITY)
+//     private Long resultId;
+
+//     private Long sessionId;
+//     private Long scenIdx;
+//     private Long userIdx;
+
+//     @Column(columnDefinition = "JSON")
+//     private String answerJson;
+
+//     @Column(columnDefinition = "JSON")
+//     private String skillsJson;
+
+//     private boolean isCorrect;
+
+//     @Column(updatable = false, insertable = false,
+//             columnDefinition = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+//     private java.sql.Timestamp createdAt;
+
+//     @Column(updatable = false, insertable = false,
+//             columnDefinition = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP")
+//     private java.sql.Timestamp updatedAt;
+// }
 
     // @Column(columnDefinition = "JSON")
     // private String answerJson;   // 범인, 언제, 어떻게, 왜

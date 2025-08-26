@@ -41,6 +41,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/nlp/**").permitAll()
                 // 시나리오 API 공개
                 .requestMatchers("/api/scenarios/**").permitAll()
+                // 게임 세션 시작 API는 비로그인도 호출 가능
+                .requestMatchers("/api/game/session/start").permitAll()
                 // 나머지는 인증 필요
                 .anyRequest().authenticated()
             )

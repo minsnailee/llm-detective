@@ -10,7 +10,7 @@ import lombok.Getter;
 @Getter
 @AllArgsConstructor
 public class UserResponse {
-    private Long userIdx;
+    private Integer userIdx;
     private String userId;        // 로그인 아이디
     private String nickname;  // 닉네임
     private String role;      // 권한

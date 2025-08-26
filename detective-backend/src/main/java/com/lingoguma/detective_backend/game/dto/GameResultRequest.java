@@ -6,9 +6,9 @@ import java.util.Map;
 @Getter @Setter
 @NoArgsConstructor @AllArgsConstructor @Builder
 public class GameResultRequest {
-    private Long sessionId;                 // ✅ game_results.session_id
-    private Long scenIdx;                   // ✅ game_results.scen_idx
-    private Long userIdx;                   // ✅ game_results.user_idx
+    private Integer sessionId;                 // ✅ game_results.session_id
+    private Integer scenIdx;                   // ✅ game_results.scen_idx
+    private Integer userIdx;                   // ✅ game_results.user_idx
     private Map<String, Object> answerJson; // JSON 그대로 받음
     private Map<String, Integer> skills;    // NLP 점수 JSON
     private boolean isCorrect;              // 정답 여부 (추가 컬럼)

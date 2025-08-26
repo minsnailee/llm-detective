@@ -1,11 +1,11 @@
 import { create } from "zustand";
 
-type User = {
+export type User = {
   userIdx?: number;
   userId?: string;
   email?: string;
   nickname?: string;
-  role?: string;
+  role?: "MEMBER" | "EXPERT" | "ADMIN"; // ✅ 권한 Enum 값 반영
 };
 
 type AuthState = {

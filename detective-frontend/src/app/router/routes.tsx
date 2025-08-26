@@ -14,7 +14,7 @@ import MyPage from "../../pages/MyPage";
 import LoginPage from "../../pages/LoginPage";
 import SignupPage from "../../pages/SignupPage";
 import SignupCompletePage from "../../pages/SignupCompletePage";
-const AdminDashboardPage = () => <div>Admin</div>;
+import AdminDashboardPage from "../../pages/admin/AdminDashboardPage";
 
 export const router = createBrowserRouter([
     {
