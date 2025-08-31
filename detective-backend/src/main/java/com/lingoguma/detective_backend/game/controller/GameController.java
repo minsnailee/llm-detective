@@ -78,6 +78,32 @@ public class GameController {
                 .findFirst()
                 .orElse(Map.of());
 
+        // // system 프롬프트 구성
+        // String mission = (String) promptConfig.getOrDefault("mission", "너는 사건 속 등장인물 중 하나다.");
+        // @SuppressWarnings("unchecked")
+        // List<String> rules = (List<String>) promptConfig.getOrDefault("rules", List.of());
+
+        // StringBuilder systemPrompt = new StringBuilder();
+        // systemPrompt.append(mission).append("\n");
+
+        // if (!rules.isEmpty()) {
+        //     systemPrompt.append("### 규칙 ###\n");
+        //     for (String r : rules) {
+        //         systemPrompt.append("- ").append(r).append("\n");
+        //     }
+        // }
+
+        // systemPrompt.append("\n### 너의 캐릭터 정보 ###\n");
+        // systemPrompt.append("이름: ").append(suspect.getOrDefault("name", "알 수 없는 인물")).append("\n");
+        // systemPrompt.append("직업: ").append(suspect.getOrDefault("job", suspect.getOrDefault("occupation", "알 수 없음"))).append("\n");
+        // systemPrompt.append("성격: ").append(suspect.getOrDefault("personality", "알 수 없음")).append("\n");
+        // systemPrompt.append("알리바이: ").append(
+        //         suspect.containsKey("alibi")
+        //                 ? suspect.get("alibi").toString()
+        //                 : "알 수 없음"
+        // ).append("\n");
+        // systemPrompt.append("말투: ").append(suspect.getOrDefault("speaking_style", "평범한 말투")).append("\n");
+        // systemPrompt.append("반드시 위 말투를 유지해서 대답해야 한다.\n");
         // system 프롬프트 구성
         String mission = (String) promptConfig.getOrDefault("mission", "너는 사건 속 등장인물 중 하나다.");
         @SuppressWarnings("unchecked")
@@ -85,16 +111,30 @@ public class GameController {
 
         StringBuilder systemPrompt = new StringBuilder();
         systemPrompt.append(mission).append("\n");
+
         if (!rules.isEmpty()) {
             systemPrompt.append("규칙:\n");
             for (String r : rules) {
                 systemPrompt.append("- ").append(r).append("\n");
             }
         }
-        systemPrompt.append("너는 '").append(suspect.getOrDefault("name", "알 수 없는 인물")).append("'이라는 캐릭터다.\n")
-                .append("직업: ").append(suspect.getOrDefault("job", "알 수 없음")).append("\n")
-                .append("성격: ").append(suspect.getOrDefault("personality", "알 수 없음")).append("\n")
-                .append("알리바이: ").append(suspect.getOrDefault("alibi", "알 수 없음"));
+
+        // 캐릭터 상세 정보
+        systemPrompt.append("\n### 너의 캐릭터 정보 ###\n");
+        systemPrompt.append("이름: ").append(suspect.getOrDefault("name", "알 수 없는 인물")).append("\n");
+        systemPrompt.append("직업: ").append(suspect.getOrDefault("job", suspect.getOrDefault("occupation", "알 수 없음"))).append("\n");
+        systemPrompt.append("나이: ").append(suspect.getOrDefault("age", "알 수 없음")).append("\n");
+        systemPrompt.append("성별: ").append(suspect.getOrDefault("gender", "알 수 없음")).append("\n");
+        systemPrompt.append("성격: ").append(suspect.getOrDefault("personality", "알 수 없음")).append("\n");
+        systemPrompt.append("말투: ").append(suspect.getOrDefault("speaking_style", "알 수 없음")).append("\n");
+        systemPrompt.append("옷차림: ").append(suspect.getOrDefault("outfit", "알 수 없음")).append("\n");
+        systemPrompt.append("알리바이: ").append(
+                suspect.containsKey("alibi") ? suspect.get("alibi").toString() : "알 수 없음"
+        ).append("\n");
+        systemPrompt.append("임무: ").append(suspect.getOrDefault("mission", "알 수 없음")).append("\n");
+        // systemPrompt.append("샘플 대사: ").append(suspect.getOrDefault("sample_line", "없음")).append("\n");
+
+        systemPrompt.append("\n반드시 위 캐릭터 설정과 말투를 유지해서 대답하라.\n");
 
         List<Map<String, String>> messages = new java.util.ArrayList<>();
         messages.add(Map.of("role", "system", "content", systemPrompt.toString()));
@@ -127,7 +167,6 @@ public class GameController {
         resp.setAnswer(answer);
         return ResponseEntity.ok(resp);
     }
-
 
     // ==============================
     // 사건 종료 → NLP 분석 + 결과 저장

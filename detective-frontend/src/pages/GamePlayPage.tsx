@@ -10,11 +10,23 @@ interface ScenarioDetail {
   contentJson?: string;
 }
 
+// interface Character {
+//   name: string;
+//   role: string;
+//   personality: string;
+//   alibi: string;
+// }
+
 interface Character {
   name: string;
   role: string;
-  personality: string;
-  alibi: string;
+  age?: number;
+  gender?: string;
+  job?: string;
+  personality?: string;
+  alibi?: string;
+  outfit: string;
+  sample_line: string;
 }
 
 interface AskResponse {
@@ -151,27 +163,37 @@ export default function GamePlayPage() {
           margin: "40px 0",
         }}
       >
+        {/* 용의자 캐릭터 카드 */}
         {characters.slice(0, 3).map((c, idx) => (
+          
           <div
             key={idx}
             onClick={() => setSelectedChar(c)}
             style={{
               textAlign: "center",
               cursor: "pointer",
-              border:
-                selectedChar?.name === c.name
-                  ? "2px solid blue"
-                  : "1px solid #ccc",
-              padding: "10px",
+              border: selectedChar?.name === c.name ? "2px solid blue" : "1px solid #ccc",
+              padding: "12px",
               borderRadius: "8px",
-              width: "140px",
+              width: "180px",
               userSelect: "none",
             }}
-            title={`${c.name} 선택`}
           >
             <div style={{ fontSize: "40px" }}>🙂</div>
-            <p style={{ margin: "8px 0 4px" }}>{c.name || `AI 용의자 ${idx + 1}`}</p>
-            <small style={{ color: "#666" }}>{c.role}</small>
+            <p style={{ margin: "8px 0 4px", fontWeight: "bold" }}>{c.name}</p>
+            <small style={{ color: "#666" }}>{c.age}세, {c.gender}, {c.job}</small>
+
+            {c.outfit && (
+              <p style={{ fontSize: "12px", margin: "6px 0", color: "#444" }}>
+                옷차림: {c.outfit}
+              </p>
+            )}
+
+            {c.sample_line && (
+              <p style={{ fontSize: "12px", fontStyle: "italic", color: "#555" }}>
+                “{c.sample_line}”
+              </p>
+            )}
           </div>
         ))}
       </div>
