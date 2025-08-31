@@ -1,32 +1,45 @@
 package com.lingoguma.detective_backend.game.service;
 
-import com.google.gson.Gson;
-import com.lingoguma.detective_backend.game.dto.GameResultRequest;
-import com.lingoguma.detective_backend.game.dto.GameResultResponse;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.lingoguma.detective_backend.game.dto.GameFinishRequest;
 import com.lingoguma.detective_backend.game.entity.GameResult;
 import com.lingoguma.detective_backend.game.repository.GameResultRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
 public class GameResultService {
 
-    private final GameResultRepository gameResultRepository;
+    private final GameResultRepository repo;
+    private final ObjectMapper mapper; // Bean 주입
 
-    public GameResultResponse saveResult(GameResultRequest req) {
-        Gson gson = new Gson();
+    @Transactional
+    public Integer saveResult(GameFinishRequest req, String skillsJsonStr, boolean isCorrect) {
+        try {
+            // answerJson → JSON 변환
+            Map<String, Object> answerMap = mapper.convertValue(
+                    req.getAnswerJson(),
+                    new TypeReference<Map<String, Object>>() {}
+            );
+            String answerJsonStr = mapper.writeValueAsString(answerMap);
 
-        GameResult entity = GameResult.builder()
-                .sessionId(req.getSessionId())
-                .scenIdx(req.getScenIdx())
-                .userIdx(req.getUserIdx())
-                .answerJson(gson.toJson(req.getAnswerJson())) // Map → JSON
-                .skillsJson(gson.toJson(req.getSkills()))     // req.getSkills()로 수정
-                .isCorrect(req.isCorrect())
-                .build();
-                
+            GameResult gr = GameResult.builder()
+                    .sessionId(req.getSessionId())
+                    .scenIdx(req.getScenIdx())
+                    .userIdx(req.getUserIdx())
+                    .answerJson(answerJsonStr)
+                    .skillsJson(skillsJsonStr)
+                    .isCorrect(isCorrect) // 서버 계산 correct 반영
+                    .build();
 
-        return GameResultResponse.fromEntity(gameResultRepository.save(entity));
+            return repo.save(gr).getResultId();
+        } catch (Exception e) {
+            throw new RuntimeException("결과 저장 실패", e);
+        }
     }
 }

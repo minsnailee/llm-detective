@@ -1,20 +1,39 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from app.routers import nlp
+from fastapi import FastAPI, APIRouter
+from pydantic import BaseModel
+from typing import Dict, Any, List
 
-app = FastAPI(title="Detective NLP Service")
+app = FastAPI()
+router = APIRouter(prefix="/nlp", tags=["nlp"])
 
-# 개발 편의용 CORS (프론트/백엔드 로컬 허용)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:8090"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+class AnalyzeReq(BaseModel):
+    session_id: int
+    log_json: Dict[str, Any]
 
-app.include_router(nlp.router)
+class AnalyzeRes(BaseModel):
+    skills: Dict[str, int]
 
-@app.get("/")
+@router.get("/health")
 def health():
     return {"ok": True}
+
+@router.post("/analyze", response_model=AnalyzeRes)
+def analyze(req: AnalyzeReq):
+    logs: List[Dict[str, Any]] = req.log_json.get("logs", [])
+    qs = [l for l in logs if l.get("speaker") == "PLAYER"]
+    text = " ".join([l.get("message", "") for l in qs])
+
+    wh = sum(w in text for w in ["왜","어떻게","언제","어디","무엇","누가"])
+    qn = len(qs)
+    uniq = len(set(text.split()))
+    clip = lambda x: max(0, min(100, int(x)))
+
+    skills = {
+        "logic":     clip(55 + wh*5),
+        "creativity":clip(55 + min(uniq//20, 10)),
+        "focus":     clip(60 + (5 if qn <= 8 else -5)),
+        "diversity": clip(50 + min(wh*6, 20)),
+        "depth":     clip(50 + min(qn, 10)),
+    }
+    return AnalyzeRes(skills=skills)
+
+app.include_router(router)

@@ -1,48 +1,50 @@
 import { useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api } from "../shared/api/client";
+import { useAuth } from "../store/auth.store";
 
 export default function ResultPage() {
   const { scenarioId } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { user } = useAuth();   // 로그인된 사용자 정보
+
+  const sessionId = Number(searchParams.get("sessionId"));
 
   const [selectedCulprit, setSelectedCulprit] = useState("");
   const [whenText, setWhenText] = useState("");
   const [howText, setHowText] = useState("");
   const [whyText, setWhyText] = useState("");
 
-  // 예시: 실제 로그인 연동되면 userId 가져오기
-  const userId = 1;
-  // 예시: 세션 ID도 /game/session/start 호출 후 받아와야 함
-  const sessionId = 1;
-
   const handleSubmit = async () => {
+    if (!sessionId) {
+      alert("세션 ID가 없습니다.");
+      return;
+    }
+
     const payload = {
-      sessionId,                  // 세션 ID
-      scenIdx: Number(scenarioId), // DB 칼럼명에 맞춤 (scenIdx)
-      userIdx: userId,            // DB 칼럼명에 맞춤 (userIdx)
-      answerJson: {               // JSON.stringify 제거
+      sessionId,
+      scenIdx: Number(scenarioId),
+      userIdx: user ? user.userIdx : null,   // 로그인 시에는 userIdx, 비회원이면 null
+      answerJson: {
         culprit: selectedCulprit,
         when: whenText,
         how: howText,
         why: whyText,
       },
-      skills: {                   // NLP 점수 (임시 하드코딩, 나중에 교체)
+      skills: {
         logic: 70,
         creativity: 75,
         focus: 65,
         diversity: 60,
         depth: 55,
       },
-      isCorrect: selectedCulprit === "AI 용의자 2", // 정답 여부 예시
+      isCorrect: selectedCulprit === "홍길이", // 실제 정답 캐릭터 기준
     };
-
-    console.log("추리 결과 제출 payload:", payload);
 
     try {
       await api.post("/game/result", payload);
-      alert("결과가 저장되었습니다!");
-      navigate(`/play/${scenarioId}/analysis`, {
+      navigate(`/play/${scenarioId}/analysis?sessionId=${sessionId}`, {
         state: {
           culprit: selectedCulprit,
           isCorrect: payload.isCorrect,
@@ -51,6 +53,7 @@ export default function ResultPage() {
       });
     } catch (err) {
       console.error("결과 제출 실패:", err);
+      alert("결과 저장에 실패했습니다.");
     }
   };
 
@@ -60,33 +63,18 @@ export default function ResultPage() {
 
       <div>
         <p>범인을 선택하세요:</p>
-        <label>
-          <input
-            type="radio"
-            name="culprit"
-            value="AI 용의자 1"
-            onChange={(e) => setSelectedCulprit(e.target.value)}
-          />
-          AI 용의자 1
-        </label>
-        <label>
-          <input
-            type="radio"
-            name="culprit"
-            value="AI 용의자 2"
-            onChange={(e) => setSelectedCulprit(e.target.value)}
-          />
-          AI 용의자 2
-        </label>
-        <label>
-          <input
-            type="radio"
-            name="culprit"
-            value="AI 용의자 3"
-            onChange={(e) => setSelectedCulprit(e.target.value)}
-          />
-          AI 용의자 3
-        </label>
+        {/* 시나리오 contentJson의 characters를 불러와 동적으로 표시해도 OK */}
+        {["홍길동", "홍길순", "홍길이"].map((c) => (
+          <label key={c} style={{ display: "block" }}>
+            <input
+              type="radio"
+              name="culprit"
+              value={c}
+              onChange={(e) => setSelectedCulprit(e.target.value)}
+            />
+            {c}
+          </label>
+        ))}
       </div>
 
       <div style={{ marginTop: "20px" }}>
@@ -113,6 +101,7 @@ export default function ResultPage() {
       <button
         style={{ marginTop: "20px", padding: "10px 20px" }}
         onClick={handleSubmit}
+        disabled={!selectedCulprit}
       >
         추리 결과 제출
       </button>

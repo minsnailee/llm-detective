@@ -1,19 +1,19 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../shared/api/client";
-import { useAuth } from "../store/auth.store"; // zustand store import
+import { useAuth } from "../store/auth.store";
 
 interface Scenario {
   scenIdx: number;
   scenTitle: string;
   scenLevel: number;
-  scenAccess: "FREE" | "MEMBER"; // 추가
+  scenAccess: "FREE" | "MEMBER";
 }
 
 export default function ScenarioSelectPage() {
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const navigate = useNavigate();
-  const { user } = useAuth(); // zustand store에서 user 가져오기
+  const { user } = useAuth();
 
   useEffect(() => {
     const fetchScenarios = async () => {
@@ -30,19 +30,22 @@ export default function ScenarioSelectPage() {
 
   const handleStart = async (s: Scenario) => {
     try {
-      // MEMBER인데 로그인 안 한 경우
       if (s.scenAccess === "MEMBER" && !user?.userIdx) {
         alert("로그인이 필요한 시나리오입니다.");
         return;
       }
 
-      // 요청 URL 구성
-      let url = `/game/session/start?scenIdx=${s.scenIdx}`;
-      if (user?.userIdx) {
-        url += `&userIdx=${user.userIdx}`;
-      }
+      const res = await api.post<number>(
+        "/game/session/start",
+        null, // body 없음
+        {
+          params: {
+            scenIdx: s.scenIdx,
+            userIdx: user?.userIdx,
+          },
+        }
+      );
 
-      const res = await api.post<number>(url);
       const sessionId = res.data;
       navigate(`/play/${s.scenIdx}?sessionId=${sessionId}`);
     } catch (err) {
@@ -64,7 +67,7 @@ export default function ScenarioSelectPage() {
               padding: "16px",
               borderRadius: "8px",
               cursor: "pointer",
-              opacity: s.scenAccess === "MEMBER" && !user?.userIdx ? 0.6 : 1, // 잠금효과
+              opacity: s.scenAccess === "MEMBER" && !user?.userIdx ? 0.6 : 1,
             }}
           >
             <h3>

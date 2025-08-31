@@ -1,10 +1,10 @@
 package com.lingoguma.detective_backend.game.dto;
 
 import lombok.Data;
+import java.util.Map;
 
 @Data
-public class NlpAskRequest {
+public class NlpAnalyzeRequest {
     private Integer sessionId;
-    private String suspectName;
-    private String userText;
+    private Map<String, Object> logJson;
 }

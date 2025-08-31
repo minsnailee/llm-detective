@@ -10,11 +10,16 @@ import ScenarioSelectPage from "../../pages/ScenarioSelectPage";
 import GamePlayPage from "../../pages/GamePlayPage";
 import ResultPage from "../../pages/ResultPage";
 import AnalysisPage from "../../pages/AnalysisPage";
-import MyPage from "../../pages/MyPage";
+import MyPageLayout from "../../pages/mypage/MyPageLayout";
 import LoginPage from "../../pages/LoginPage";
 import SignupPage from "../../pages/SignupPage";
 import SignupCompletePage from "../../pages/SignupCompletePage";
 import AdminDashboardPage from "../../pages/admin/AdminDashboardPage";
+import GameResultDetailPage from "../../pages/mypage/GameResultDetailPage";
+import AccountInfoPage from "../../pages/mypage/AccountInfoPage";
+import RequestExpertPage from "../../pages/mypage/RequestExpertPage";
+import GameHistoryPage from "../../pages/mypage/GameHistoryPage";
+import ExpertScenarioPage from "../../pages/mypage/ExpertScenarioPage";
 
 export const router = createBrowserRouter([
     {
@@ -25,7 +30,17 @@ export const router = createBrowserRouter([
             { path: "/play/:scenarioId", element: <GamePlayPage /> },
             { path: "/play/:scenarioId/result", element: <ResultPage /> },
             { path: "/play/:scenarioId/analysis", element: <AnalysisPage /> },
-            { path: "/my", element: <MyPage /> },
+            {
+                path: "/my",
+                element: <MyPageLayout />,
+                children: [
+                    { path: "account", element: <AccountInfoPage /> },
+                    { path: "request-expert", element: <RequestExpertPage /> },
+                    { path: "history", element: <GameHistoryPage /> },
+                    { path: "game-result/:resultId", element: <GameResultDetailPage /> },
+                    { path: "expert-scenario", element: <ExpertScenarioPage /> },
+                ],
+            },
         ],
     },
     {
