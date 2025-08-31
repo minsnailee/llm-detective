@@ -27,7 +27,7 @@ export default function AnalysisPage() {
     const location = useLocation();
     const navigate = useNavigate();
 
-    // ✅ state로 전달받은 값 (없으면 기본값)
+    // state로 전달받은 값 (없으면 기본값)
     const { culprit, isCorrect, skills } = (location.state as any) || {
         culprit: "AI 용의자 2",
         isCorrect: false,
@@ -40,14 +40,14 @@ export default function AnalysisPage() {
         },
     };
 
-    // ✅ 쿼리스트링에서 sessionId 추출
+    // 쿼리스트링에서 sessionId 추출
     const sessionId = Number(new URLSearchParams(location.search).get("sessionId"));
 
     // 예시: userIdx, scenIdx는 props/state/전역관리에서 가져오면 더 좋아요
     const userIdx = 1;
     const scenIdx = Number(scenarioId);
 
-    // ✅ 제출 함수
+    // 제출 함수
     const submitResult = async () => {
         const result = {
             sessionId,
@@ -70,7 +70,7 @@ export default function AnalysisPage() {
         }
     };
 
-    // ✅ 차트 데이터
+    // 차트 데이터
     const data = {
         labels: ["논리력", "창의력", "집중력", "다양성", "깊이"],
         datasets: [

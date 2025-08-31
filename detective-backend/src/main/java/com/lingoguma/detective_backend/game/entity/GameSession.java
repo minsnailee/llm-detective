@@ -15,7 +15,7 @@ public class GameSession {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Integer sessionId;   // ✅ int 기반 PK
+    private Integer sessionId;   // int 기반 PK
 
     @ManyToOne
     @JoinColumn(name = "scen_idx", nullable = false)
@@ -30,7 +30,7 @@ public class GameSession {
     private GameStatus status;   // PLAYING, FINISHED
 
     @Column(columnDefinition = "JSON")
-    private String logJson;      // ✅ 세션 로그 JSON 한 줄 저장
+    private String logJson;      // 세션 로그 JSON 한 줄 저장
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

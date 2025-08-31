@@ -139,10 +139,10 @@ public class AdminController {
         }
 
         try {
-            // ✅ 1. 해당 시나리오와 연결된 모든 세션 삭제
+            // 1. 해당 시나리오와 연결된 모든 세션 삭제
             gameSessionRepository.deleteByScenario_ScenIdx(id);
 
-            // ✅ 2. 시나리오 삭제
+            // 2. 시나리오 삭제
             scenarioRepository.deleteById(id);
 
             return ResponseEntity.ok("시나리오 및 관련 세션 삭제 완료");

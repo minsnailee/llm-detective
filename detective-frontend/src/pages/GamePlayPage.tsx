@@ -81,7 +81,7 @@ export default function GamePlayPage() {
 
     try {
       const res = await api.post<AskResponse>("/game/ask", {
-        session_id: 1, // ✅ 현재 세션 ID (백엔드 세션 시작 API랑 연동 필요)
+        session_id: 1, // 현재 세션 ID (백엔드 세션 시작 API랑 연동 필요)
         suspect_name: selectedChar.name,
         user_text: input,
       });

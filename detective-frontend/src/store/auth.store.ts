@@ -5,7 +5,7 @@ export type User = {
   userId?: string;
   email?: string;
   nickname?: string;
-  role?: "MEMBER" | "EXPERT" | "ADMIN"; // ✅ 권한 Enum 값 반영
+  role?: "MEMBER" | "EXPERT" | "ADMIN"; // 권한 Enum 값 반영
 };
 
 type AuthState = {

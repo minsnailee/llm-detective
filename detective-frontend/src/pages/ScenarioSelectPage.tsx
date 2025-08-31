@@ -1,19 +1,19 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../shared/api/client";
-import { useAuth } from "../store/auth.store"; // ✅ zustand store import
+import { useAuth } from "../store/auth.store"; // zustand store import
 
 interface Scenario {
   scenIdx: number;
   scenTitle: string;
   scenLevel: number;
-  scenAccess: "FREE" | "MEMBER"; // ✅ 추가
+  scenAccess: "FREE" | "MEMBER"; // 추가
 }
 
 export default function ScenarioSelectPage() {
   const [scenarios, setScenarios] = useState<Scenario[]>([]);
   const navigate = useNavigate();
-  const { user } = useAuth(); // ✅ zustand store에서 user 가져오기
+  const { user } = useAuth(); // zustand store에서 user 가져오기
 
   useEffect(() => {
     const fetchScenarios = async () => {

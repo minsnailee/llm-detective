@@ -46,7 +46,7 @@ def get_session_and_scenario(session_id: int):
     conn = mysql.connector.connect(
         host="localhost",
         user="root",
-        password="000000",   # ✅ 실제 비밀번호 입력
+        password="000000",   # 실제 비밀번호 입력
         database="lingoguma_detective_db"
     )
     cur = conn.cursor(dictionary=True)
@@ -107,7 +107,7 @@ def ask(req: AskReq):
     conn = mysql.connector.connect(
         host="localhost",
         user="root",
-        password="000000",   # ✅ 실제 비밀번호 입력
+        password="000000",   # 실제 비밀번호 입력
         database="lingoguma_detective_db"
     )
     cur = conn.cursor()

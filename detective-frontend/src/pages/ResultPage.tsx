@@ -18,10 +18,10 @@ export default function ResultPage() {
 
   const handleSubmit = async () => {
     const payload = {
-      sessionId,                  // ✅ 세션 ID
-      scenIdx: Number(scenarioId), // ✅ DB 칼럼명에 맞춤 (scenIdx)
-      userIdx: userId,            // ✅ DB 칼럼명에 맞춤 (userIdx)
-      answerJson: {               // ✅ JSON.stringify 제거
+      sessionId,                  // 세션 ID
+      scenIdx: Number(scenarioId), // DB 칼럼명에 맞춤 (scenIdx)
+      userIdx: userId,            // DB 칼럼명에 맞춤 (userIdx)
+      answerJson: {               // JSON.stringify 제거
         culprit: selectedCulprit,
         when: whenText,
         how: howText,
