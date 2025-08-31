@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.*;
 public class GameController {
 
     private final GameNlpClient nlpClient;              // FastAPI 호출 (ask/score 통합)
-    private final GameSessionService gameSessionService; // ✅ JPA 기반 세션 관리 서비스
+    private final GameSessionService gameSessionService; // JPA 기반 세션 관리 서비스
     private final GameResultService gameResultService;   // 게임 결과 저장 서비스
     private final ScenarioRepository scenarioRepository; // 시나리오 접근 권한 확인
 

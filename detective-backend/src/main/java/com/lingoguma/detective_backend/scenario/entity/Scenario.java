@@ -15,7 +15,7 @@ public class Scenario {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Integer scenIdx;   // ✅ int 기반 PK
+    private Integer scenIdx;   // int 기반 PK
 
     @Column(nullable = false, length = 225)
     private String scenTitle;
@@ -34,7 +34,7 @@ public class Scenario {
     private ScenStatus scenStatus;
 
     @Column(columnDefinition = "JSON")
-    private String contentJson;   // ✅ JSON 한 줄 저장
+    private String contentJson;   // JSON 한 줄 저장
 
     private Integer createdBy;    // 작성자 (users.user_idx FK)
 

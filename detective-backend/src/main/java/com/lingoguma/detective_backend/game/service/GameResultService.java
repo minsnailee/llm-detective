@@ -22,7 +22,7 @@ public class GameResultService {
                 .scenIdx(req.getScenIdx())
                 .userIdx(req.getUserIdx())
                 .answerJson(gson.toJson(req.getAnswerJson())) // Map → JSON
-                .skillsJson(gson.toJson(req.getSkills()))     // ✅ req.getSkills()로 수정
+                .skillsJson(gson.toJson(req.getSkills()))     // req.getSkills()로 수정
                 .isCorrect(req.isCorrect())
                 .build();
                 

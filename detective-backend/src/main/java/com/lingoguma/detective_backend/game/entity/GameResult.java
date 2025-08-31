@@ -13,17 +13,17 @@ public class GameResult {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Integer resultId;    // ✅ int 기반 PK
+    private Integer resultId;    // int 기반 PK
 
-    private Integer sessionId;   // ✅ 세션 ID (값만 저장)
-    private Integer scenIdx;     // ✅ 시나리오 ID
-    private Integer userIdx;     // ✅ 유저 ID
-
-    @Column(columnDefinition = "JSON")
-    private String answerJson;   // ✅ 답변 JSON 한 줄
+    private Integer sessionId;   // 세션 ID (값만 저장)
+    private Integer scenIdx;     // 시나리오 ID
+    private Integer userIdx;     // 유저 ID
 
     @Column(columnDefinition = "JSON")
-    private String skillsJson;   // ✅ 스킬 점수 JSON 한 줄
+    private String answerJson;   // 답변 JSON 한 줄
+
+    @Column(columnDefinition = "JSON")
+    private String skillsJson;   // 스킬 점수 JSON 한 줄
 
     private boolean isCorrect;
 
