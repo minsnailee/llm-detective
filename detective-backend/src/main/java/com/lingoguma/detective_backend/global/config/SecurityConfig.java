@@ -46,6 +46,8 @@ public class SecurityConfig {
                     "/api/game/result"         // 사건 종료 (분석+결과 저장)
                 ).permitAll()
 
+                .requestMatchers("/api/game-results/**").permitAll()
+
                 // -----------------------------
                 // 2) 로그인 후에만 접근 가능한 API
                 // -----------------------------

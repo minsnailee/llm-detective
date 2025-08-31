@@ -11,4 +11,5 @@ public class GameFinishRequest {
     private boolean correct;                // 정답 여부
     private Map<String, Object> answerJson; // 최종 답변/근거
     private Map<String, Object> skills;     // nlp 점수
+    private Map<String,Object> timings;     // 타이머 정보
 }

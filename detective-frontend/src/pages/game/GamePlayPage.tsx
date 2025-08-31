@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { api } from "../shared/api/client";
+import { api } from "../../shared/api/client";
 
 interface ScenarioDetail {
   scenIdx: number;
@@ -9,13 +9,6 @@ interface ScenarioDetail {
   scenLevel: number;
   contentJson?: string;
 }
-
-// interface Character {
-//   name: string;
-//   role: string;
-//   personality: string;
-//   alibi: string;
-// }
 
 interface Character {
   name: string;
@@ -37,6 +30,7 @@ export default function GamePlayPage() {
   const { scenarioId } = useParams();
   const [searchParams] = useSearchParams();
   const sessionId = Number(searchParams.get("sessionId")); // 세션ID 쿼리에서 읽기
+  const navigate = useNavigate();
 
   const [scenario, setScenario] = useState<ScenarioDetail | null>(null);
   const [characters, setCharacters] = useState<Character[]>([]);
@@ -47,14 +41,32 @@ export default function GamePlayPage() {
   const [asking, setAsking] = useState(false);
 
   const [showSummary, setShowSummary] = useState(false);
-  const navigate = useNavigate();
 
-  // 타이머
+  // ─────────────────────────────────────────────
+  // 메인 타이머: 이 페이지에서만 동작. 종료 버튼 누르면 즉시 멈춤.
+  // ─────────────────────────────────────────────
   const [seconds, setSeconds] = useState(0);
+  const timerRef = useRef<number | null>(null);
+  const TIMER_KEY = sessionId ? `timer_session_${sessionId}` : "timer_session_unknown";
+
   useEffect(() => {
-    const timer = setInterval(() => setSeconds((s) => s + 1), 1000);
-    return () => clearInterval(timer);
-  }, []);
+    // 시작
+    timerRef.current = window.setInterval(() => {
+      setSeconds((s) => {
+        const next = s + 1;
+        sessionStorage.setItem(TIMER_KEY, String(next)); // 새로고침 대비 저장
+        return next;
+      });
+    }, 1000);
+
+    // 종료(언마운트)
+    return () => {
+      if (timerRef.current !== null) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [TIMER_KEY]);
+
   const formatTime = (s: number) => {
     const m = String(Math.floor(s / 60)).padStart(2, "0");
     const sec = String(s % 60).padStart(2, "0");
@@ -72,9 +84,10 @@ export default function GamePlayPage() {
         // contentJson 안전 파싱
         if (res.data.contentJson) {
           try {
-            const parsed = typeof res.data.contentJson === "string"
-              ? JSON.parse(res.data.contentJson)
-              : res.data.contentJson;
+            const parsed =
+              typeof res.data.contentJson === "string"
+                ? JSON.parse(res.data.contentJson)
+                : (res.data.contentJson as any);
             setCharacters(parsed?.characters || []);
           } catch (e) {
             console.error("contentJson 파싱 실패:", e);
@@ -90,7 +103,7 @@ export default function GamePlayPage() {
     fetchScenario();
   }, [scenarioId]);
 
-  // 질문하기 → Spring `/api/game/ask`
+  // 질문하기 → Spring `/api/game/ask` (여기서는 네비게이트 하지 않음!)
   const handleAsk = async () => {
     if (!selectedChar || !input.trim()) return;
     if (!sessionId) {
@@ -100,17 +113,11 @@ export default function GamePlayPage() {
 
     try {
       setAsking(true);
-      const res = await api.post<AskResponse>(
-        "/game/ask",
-        {
-          // 백엔드 DTO(NlpAskRequest)와 키 일치 (camelCase)
-          sessionId: sessionId,
-          suspectName: selectedChar.name,
-          userText: input,
-        }
-        // 참고: CORS/쿠키 이슈 진단용으로만 아래 옵션을 일시적으로 써볼 수 있어요.
-        // , { withCredentials: false }
-      );
+      const res = await api.post<AskResponse>("/game/ask", {
+        sessionId: sessionId,
+        suspectName: selectedChar.name,
+        userText: input,
+      });
 
       setAnswer(res.data.answer);
       setInput("");
@@ -126,13 +133,26 @@ export default function GamePlayPage() {
     if (e.key === "Enter") handleAsk();
   };
 
+  // 사건 종료 → 결과 페이지로 이동
+  // - 여기서 메인 타이머를 '즉시' 멈추고, 플레이 시간 값을 함께 전달
   const goResult = () => {
     if (!sessionId) {
       alert("세션 정보가 없습니다. 시나리오 선택 화면에서 다시 시작해주세요.");
       return;
     }
-    // 결과 페이지에도 sessionId를 넘겨주자
-    navigate(`/play/${scenarioId}/result?sessionId=${sessionId}`);
+
+    // 타이머 즉시 멈춤
+    if (timerRef.current !== null) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+
+    const playDuration = seconds;
+    sessionStorage.setItem(TIMER_KEY, String(playDuration)); // 안전하게 저장
+
+    navigate(`/play/${scenarioId}/result?sessionId=${sessionId}&t=${playDuration}`, {
+      state: { totalDuration: playDuration }, // state에도 전달
+    });
   };
 
   return (
@@ -163,16 +183,15 @@ export default function GamePlayPage() {
           margin: "40px 0",
         }}
       >
-        {/* 용의자 캐릭터 카드 */}
         {characters.slice(0, 3).map((c, idx) => (
-          
           <div
             key={idx}
             onClick={() => setSelectedChar(c)}
             style={{
               textAlign: "center",
               cursor: "pointer",
-              border: selectedChar?.name === c.name ? "2px solid blue" : "1px solid #ccc",
+              border:
+                selectedChar?.name === c.name ? "2px solid blue" : "1px solid #ccc",
               padding: "12px",
               borderRadius: "8px",
               width: "180px",
@@ -181,7 +200,9 @@ export default function GamePlayPage() {
           >
             <div style={{ fontSize: "40px" }}>🙂</div>
             <p style={{ margin: "8px 0 4px", fontWeight: "bold" }}>{c.name}</p>
-            <small style={{ color: "#666" }}>{c.age}세, {c.gender}, {c.job}</small>
+            <small style={{ color: "#666" }}>
+              {c.age}세, {c.gender}, {c.job}
+            </small>
 
             {c.outfit && (
               <p style={{ fontSize: "12px", margin: "6px 0", color: "#444" }}>
@@ -229,6 +250,7 @@ export default function GamePlayPage() {
         <button onClick={handleAsk} disabled={!selectedChar || !input.trim() || asking}>
           {asking ? "질문 중..." : "질문하기"}
         </button>
+
         <button onClick={goResult} style={{ marginLeft: 12 }}>
           사건 종료 ({formatTime(seconds)})
         </button>

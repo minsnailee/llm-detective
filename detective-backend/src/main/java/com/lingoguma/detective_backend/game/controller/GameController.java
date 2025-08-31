@@ -3,7 +3,6 @@ package com.lingoguma.detective_backend.game.controller;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lingoguma.detective_backend.game.dto.*;
-import com.lingoguma.detective_backend.game.entity.GameResult;
 import com.lingoguma.detective_backend.game.service.*;
 import com.lingoguma.detective_backend.scenario.entity.Scenario;
 
@@ -78,32 +77,6 @@ public class GameController {
                 .findFirst()
                 .orElse(Map.of());
 
-        // // system 프롬프트 구성
-        // String mission = (String) promptConfig.getOrDefault("mission", "너는 사건 속 등장인물 중 하나다.");
-        // @SuppressWarnings("unchecked")
-        // List<String> rules = (List<String>) promptConfig.getOrDefault("rules", List.of());
-
-        // StringBuilder systemPrompt = new StringBuilder();
-        // systemPrompt.append(mission).append("\n");
-
-        // if (!rules.isEmpty()) {
-        //     systemPrompt.append("### 규칙 ###\n");
-        //     for (String r : rules) {
-        //         systemPrompt.append("- ").append(r).append("\n");
-        //     }
-        // }
-
-        // systemPrompt.append("\n### 너의 캐릭터 정보 ###\n");
-        // systemPrompt.append("이름: ").append(suspect.getOrDefault("name", "알 수 없는 인물")).append("\n");
-        // systemPrompt.append("직업: ").append(suspect.getOrDefault("job", suspect.getOrDefault("occupation", "알 수 없음"))).append("\n");
-        // systemPrompt.append("성격: ").append(suspect.getOrDefault("personality", "알 수 없음")).append("\n");
-        // systemPrompt.append("알리바이: ").append(
-        //         suspect.containsKey("alibi")
-        //                 ? suspect.get("alibi").toString()
-        //                 : "알 수 없음"
-        // ).append("\n");
-        // systemPrompt.append("말투: ").append(suspect.getOrDefault("speaking_style", "평범한 말투")).append("\n");
-        // systemPrompt.append("반드시 위 말투를 유지해서 대답해야 한다.\n");
         // system 프롬프트 구성
         String mission = (String) promptConfig.getOrDefault("mission", "너는 사건 속 등장인물 중 하나다.");
         @SuppressWarnings("unchecked")
@@ -122,7 +95,7 @@ public class GameController {
         // 캐릭터 상세 정보
         systemPrompt.append("\n### 너의 캐릭터 정보 ###\n");
         systemPrompt.append("이름: ").append(suspect.getOrDefault("name", "알 수 없는 인물")).append("\n");
-        systemPrompt.append("직업: ").append(suspect.getOrDefault("job", suspect.getOrDefault("occupation", "알 수 없음"))).append("\n");
+        systemPrompt.append("직업: ").append(suspect.getOrDefault("job", "알 수 없음")).append("\n");
         systemPrompt.append("나이: ").append(suspect.getOrDefault("age", "알 수 없음")).append("\n");
         systemPrompt.append("성별: ").append(suspect.getOrDefault("gender", "알 수 없음")).append("\n");
         systemPrompt.append("성격: ").append(suspect.getOrDefault("personality", "알 수 없음")).append("\n");
@@ -132,7 +105,7 @@ public class GameController {
                 suspect.containsKey("alibi") ? suspect.get("alibi").toString() : "알 수 없음"
         ).append("\n");
         systemPrompt.append("임무: ").append(suspect.getOrDefault("mission", "알 수 없음")).append("\n");
-        // systemPrompt.append("샘플 대사: ").append(suspect.getOrDefault("sample_line", "없음")).append("\n");
+        systemPrompt.append("샘플 대사: ").append(suspect.getOrDefault("sample_line", "없음")).append("\n");
 
         systemPrompt.append("\n반드시 위 캐릭터 설정과 말투를 유지해서 대답하라.\n");
 
@@ -172,7 +145,7 @@ public class GameController {
     // 사건 종료 → NLP 분석 + 결과 저장
     // ==============================
     @PostMapping("/result")
-    public ResponseEntity<String> finish(@RequestBody GameFinishRequest req) {
+    public ResponseEntity<Map<String, Integer>> finish(@RequestBody GameFinishRequest req) {
         try {
             // 회원만 저장하고 싶을 때 주석 해제
             // if (req.getUserIdx() == null) {
@@ -182,19 +155,82 @@ public class GameController {
             // 1. 세션 로그 불러오기
             String logJsonStr = sessionService.getLogJson(req.getSessionId());
 
-            // 2. FastAPI 분석 요청
+            // 2. NLP 요청 DTO 준비
             NlpAnalyzeRequest analyzeReq = new NlpAnalyzeRequest();
             analyzeReq.setSessionId(req.getSessionId());
             analyzeReq.setLogJson(safeToMap(logJsonStr));
 
+            // 2-1. 시나리오 메타 및 단서 추출
+            Scenario scenario = sessionService.getScenario(req.getSessionId());
+            Map<String, Object> content = mapper.readValue(
+                    scenario.getContentJson(),
+                    new TypeReference<Map<String, Object>>() {}
+            );
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> scenMeta = (Map<String, Object>) content.getOrDefault("scenario", Map.of());
+            String caseTitle = (String) scenMeta.getOrDefault("title", scenario.getScenTitle());
+            String caseSummary = (String) scenMeta.getOrDefault("summary", scenario.getScenSummary());
+
+            java.util.List<String> facts = new java.util.ArrayList<>();
+
+            // characters[].alibi
+            @SuppressWarnings("unchecked")
+            java.util.List<Map<String, Object>> characters =
+                    (java.util.List<Map<String, Object>>) content.getOrDefault("characters", java.util.List.of());
+            for (Map<String, Object> ch : characters) {
+                Object alibi = ch.get("alibi");
+                if (alibi != null) {
+                    facts.add(ch.getOrDefault("name", "") + " 알리바이: " + alibi.toString());
+                }
+            }
+
+            // evidence[]
+            @SuppressWarnings("unchecked")
+            java.util.List<Map<String, Object>> evidence =
+                    (java.util.List<Map<String, Object>>) content.getOrDefault("evidence", java.util.List.of());
+            for (Map<String, Object> ev : evidence) {
+                String name = String.valueOf(ev.getOrDefault("name", ""));
+                String desc = String.valueOf(ev.getOrDefault("desc", ""));
+                if (!name.isBlank()) {
+                    facts.add("증거: " + name + (desc.isBlank() ? "" : " - " + desc));
+                }
+            }
+
+            // timeline[]
+            @SuppressWarnings("unchecked")
+            java.util.List<Map<String, Object>> timeline =
+                    (java.util.List<Map<String, Object>>) content.getOrDefault("timeline", java.util.List.of());
+            for (Map<String, Object> t : timeline) {
+                String time = String.valueOf(t.getOrDefault("time", ""));
+                String event = String.valueOf(t.getOrDefault("event", ""));
+                if (!time.isBlank() && !event.isBlank()) {
+                    facts.add("타임라인 " + time + ": " + event);
+                }
+            }
+
+            // 너무 길면 상위 N개만
+            int MAX_FACTS = 12;
+            if (facts.size() > MAX_FACTS) {
+                facts = facts.subList(0, MAX_FACTS);
+            }
+
+            analyzeReq.setCaseTitle(caseTitle);
+            analyzeReq.setCaseSummary(caseSummary);
+            analyzeReq.setFacts(facts);
+            analyzeReq.setFinalAnswer(req.getAnswerJson());
+            analyzeReq.setTimings(req.getTimings());   // 프론트에서 보낸 타이머 데이터
+            analyzeReq.setEngine("hf");
+
+            // 3. FastAPI 호출
             NlpAnalyzeResponse analyzeResp = null;
             try {
                 analyzeResp = nlpClient.analyze(analyzeReq);
             } catch (Exception e) {
-                System.err.println("⚠ NLP 분석 서버 호출 실패: " + e.getMessage());
+                System.err.println("NLP 분석 서버 호출 실패: " + e.getMessage());
             }
 
-            // 3. skills 결정
+            // 4. skills 결정 (프론트 skills > NLP 결과 > 빈값)
             Map<String, Object> skillsToSave;
             if (req.getSkills() != null) {
                 skillsToSave = new java.util.HashMap<>(req.getSkills());
@@ -206,20 +242,23 @@ public class GameController {
 
             String skillsJsonStr = toJson(skillsToSave);
 
-            // 4. 정답 여부 계산 (메서드 분리)
+            // 5. 정답 여부 계산
             boolean isCorrect = checkCorrect(req);
 
-            // 5. DB 저장 (Service에 isCorrect 전달)
+            // 6. DB 저장
             Integer resultId = resultService.saveResult(req, skillsJsonStr, isCorrect);
 
-            // 6. 세션 종료
+            // 7. 세션 종료
             sessionService.finishSession(req.getSessionId());
 
-            return ResponseEntity.ok("Result saved: " + resultId);
+            // return ResponseEntity.ok("Result saved: " + resultId);
+            return ResponseEntity.ok(Map.of("resultId", resultId)); // 성공 시 (예) { "resultId": 10 }
 
         } catch (Exception e) {
             e.printStackTrace();
-            return ResponseEntity.status(500).body("결과 저장 실패: " + e.getMessage());
+
+            // 실패 시 { "error": -1 } 같은 JSON 반환
+            return ResponseEntity.status(500).body(Map.of("error", -1));
         }
     }
 
@@ -245,15 +284,14 @@ public class GameController {
                 return realCulprit.equals(chosen);
             }
         } catch (Exception e) {
-            System.err.println("⚠ 정답 검증 중 오류: " + e.getMessage());
+            System.err.println("정답 검증 중 오류: " + e.getMessage());
         }
-        return false; // 실패 시 기본값은 false
+        return false;
     }
 
     // ==============================
     // util
     // ==============================
-    // JSON 문자열 → Map 안전 변환
     private Map<String, Object> safeToMap(String json) {
         try {
             return mapper.readValue(json, new TypeReference<Map<String, Object>>() {});
@@ -262,7 +300,6 @@ public class GameController {
         }
     }
 
-    // 객체 → JSON 문자열 변환
     private String toJson(Object o) {
         try {
             return mapper.writeValueAsString(o);

@@ -6,10 +6,10 @@ import AdminLayout from "../layouts/AdminLayout";
 const LobbyPage = () => <div>Lobby</div>;
 
 // const ScenarioSelectPage = () => <div>Scenario Select</div>;
-import ScenarioSelectPage from "../../pages/ScenarioSelectPage";
-import GamePlayPage from "../../pages/GamePlayPage";
-import ResultPage from "../../pages/ResultPage";
-import AnalysisPage from "../../pages/AnalysisPage";
+import ScenarioSelectPage from "../../pages/game/ScenarioSelectPage";
+import GamePlayPage from "../../pages/game/GamePlayPage";
+import ResultPage from "../../pages/game/ResultPage";
+import AnalysisPage from "../../pages/game/AnalysisPage";
 import MyPageLayout from "../../pages/mypage/MyPageLayout";
 import LoginPage from "../../pages/LoginPage";
 import SignupPage from "../../pages/SignupPage";

@@ -46,22 +46,52 @@ public class GameResultController {
     // ==============================
     @GetMapping("/{resultId}")
     public ResponseEntity<GameResultResponse> getOneResult(
-            @PathVariable Integer resultId,
+        @PathVariable Integer resultId,
+        @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        // 게스트( userIdx=null )는 권한 체크 없이 허용
+        GameResult gr = repo.findById(resultId).orElseThrow(() -> new RuntimeException("결과없음"));
+        if (gr.getUserIdx() == null) {
+            return ResponseEntity.ok(GameResultResponse.fromEntity(gr, mapper));
+        }
+        // 회원이면 본인/ADMIN만 허용
+        if (userDetails == null) return ResponseEntity.status(401).build();
+        if (!gr.getUserIdx().equals(userDetails.getUser().getUserIdx())
+            && userDetails.getUser().getRole() != Role.ADMIN) {
+            return ResponseEntity.status(403).build();
+        }
+        return ResponseEntity.ok(GameResultResponse.fromEntity(gr, mapper));
+    }
+
+    // ==============================
+    // 세션 ID 기반 결과 조회 (AnalysisPage에서 사용)
+    // ==============================
+    @GetMapping("/session/{sessionId}")
+    public ResponseEntity<GameResultResponse> getBySessionId(
+            @PathVariable Integer sessionId,
             @AuthenticationPrincipal CustomUserDetails userDetails
     ) {
-        GameResult result = repo.findById(resultId)
+        GameResult result = repo.findBySessionId(sessionId)
                 .orElseThrow(() -> new RuntimeException("결과를 찾을 수 없습니다."));
 
+        // 게스트 플레이( userIdx=null )는 로그인 필요 없음
+        if (result.getUserIdx() == null) {
+            return ResponseEntity.ok(GameResultResponse.fromEntity(result, mapper));
+        }
+
+        // 회원 플레이일 경우만 권한 체크
         if (userDetails == null) {
             return ResponseEntity.status(401).build();
         }
-
         if (!result.getUserIdx().equals(userDetails.getUser().getUserIdx())
                 && userDetails.getUser().getRole() != Role.ADMIN) {
             return ResponseEntity.status(403).build();
         }
 
-        return ResponseEntity.ok(GameResultResponse.fromEntity(result, mapper));
+        // return ResponseEntity.ok(GameResultResponse.fromEntity(result, mapper));
+        return repo.findTopBySessionIdOrderByResultIdDesc(sessionId)
+            .map(gr -> ResponseEntity.ok(GameResultResponse.fromEntity(gr, mapper)))
+            .orElse(ResponseEntity.notFound().build());
     }
 
     // ==============================
