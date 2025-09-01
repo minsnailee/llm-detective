@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -64,10 +65,9 @@ public class GameController {
             content = Map.of();
         }
 
-        // prompt + characters 안전 추출
+        // prompt + characters
         @SuppressWarnings("unchecked")
         Map<String, Object> promptConfig = (Map<String, Object>) content.getOrDefault("prompt", Map.of());
-
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> characters = (List<Map<String, Object>>) content.getOrDefault("characters", List.of());
 
@@ -84,7 +84,6 @@ public class GameController {
 
         StringBuilder systemPrompt = new StringBuilder();
         systemPrompt.append(mission).append("\n");
-
         if (!rules.isEmpty()) {
             systemPrompt.append("규칙:\n");
             for (String r : rules) {
@@ -147,12 +146,7 @@ public class GameController {
     @PostMapping("/result")
     public ResponseEntity<Map<String, Integer>> finish(@RequestBody GameFinishRequest req) {
         try {
-            // 회원만 저장하고 싶을 때 주석 해제
-            // if (req.getUserIdx() == null) {
-            //     return ResponseEntity.ok("게스트 플레이 결과 (DB 저장 안 함)");
-            // }
-
-            // 1. 세션 로그 불러오기
+            // 1. 세션 로그
             String logJsonStr = sessionService.getLogJson(req.getSessionId());
 
             // 2. NLP 요청 DTO 준비
@@ -160,7 +154,6 @@ public class GameController {
             analyzeReq.setSessionId(req.getSessionId());
             analyzeReq.setLogJson(safeToMap(logJsonStr));
 
-            // 2-1. 시나리오 메타 및 단서 추출
             Scenario scenario = sessionService.getScenario(req.getSessionId());
             Map<String, Object> content = mapper.readValue(
                     scenario.getContentJson(),
@@ -173,8 +166,6 @@ public class GameController {
             String caseSummary = (String) scenMeta.getOrDefault("summary", scenario.getScenSummary());
 
             java.util.List<String> facts = new java.util.ArrayList<>();
-
-            // characters[].alibi
             @SuppressWarnings("unchecked")
             java.util.List<Map<String, Object>> characters =
                     (java.util.List<Map<String, Object>>) content.getOrDefault("characters", java.util.List.of());
@@ -185,7 +176,6 @@ public class GameController {
                 }
             }
 
-            // evidence[]
             @SuppressWarnings("unchecked")
             java.util.List<Map<String, Object>> evidence =
                     (java.util.List<Map<String, Object>>) content.getOrDefault("evidence", java.util.List.of());
@@ -197,7 +187,6 @@ public class GameController {
                 }
             }
 
-            // timeline[]
             @SuppressWarnings("unchecked")
             java.util.List<Map<String, Object>> timeline =
                     (java.util.List<Map<String, Object>>) content.getOrDefault("timeline", java.util.List.of());
@@ -209,17 +198,15 @@ public class GameController {
                 }
             }
 
-            // 너무 길면 상위 N개만
-            int MAX_FACTS = 12;
-            if (facts.size() > MAX_FACTS) {
-                facts = facts.subList(0, MAX_FACTS);
+            if (facts.size() > 12) {
+                facts = facts.subList(0, 12);
             }
 
             analyzeReq.setCaseTitle(caseTitle);
             analyzeReq.setCaseSummary(caseSummary);
             analyzeReq.setFacts(facts);
             analyzeReq.setFinalAnswer(req.getAnswerJson());
-            analyzeReq.setTimings(req.getTimings());   // 프론트에서 보낸 타이머 데이터
+            analyzeReq.setTimings(req.getTimings());
             analyzeReq.setEngine("hf");
 
             // 3. FastAPI 호출
@@ -227,19 +214,29 @@ public class GameController {
             try {
                 analyzeResp = nlpClient.analyze(analyzeReq);
             } catch (Exception e) {
-                System.err.println("NLP 분석 서버 호출 실패: " + e.getMessage());
+                System.err.println("NLP 분석 서버 호출 실패(hf): " + e.getMessage());
+            }
+            if (analyzeResp == null) {
+                // hf 실패 시 dummy 재시도
+                try {
+                    analyzeReq.setEngine("dummy");
+                    analyzeResp = nlpClient.analyze(analyzeReq);
+                    System.err.println("hf 실패 → dummy 엔진으로 대체 성공");
+                } catch (Exception e) {
+                    System.err.println("dummy 엔진도 실패: " + e.getMessage());
+                }
             }
 
-            // 4. skills 결정 (프론트 skills > NLP 결과 > 빈값)
-            Map<String, Object> skillsToSave;
+            // 4. skills 결정
+            Map<String, ?> chosen;
             if (req.getSkills() != null) {
-                skillsToSave = new java.util.HashMap<>(req.getSkills());
+                chosen = req.getSkills();
             } else if (analyzeResp != null && analyzeResp.getSkills() != null) {
-                skillsToSave = new java.util.HashMap<>(analyzeResp.getSkills());
+                chosen = analyzeResp.getSkills();
             } else {
-                skillsToSave = Map.of();
+                chosen = Map.of();
             }
-
+            Map<String, Integer> skillsToSave = coerceSkillInts(chosen);
             String skillsJsonStr = toJson(skillsToSave);
 
             // 5. 정답 여부 계산
@@ -251,13 +248,9 @@ public class GameController {
             // 7. 세션 종료
             sessionService.finishSession(req.getSessionId());
 
-            // return ResponseEntity.ok("Result saved: " + resultId);
-            return ResponseEntity.ok(Map.of("resultId", resultId)); // 성공 시 (예) { "resultId": 10 }
-
+            return ResponseEntity.ok(Map.of("resultId", resultId));
         } catch (Exception e) {
             e.printStackTrace();
-
-            // 실패 시 { "error": -1 } 같은 JSON 반환
             return ResponseEntity.status(500).body(Map.of("error", -1));
         }
     }
@@ -271,7 +264,7 @@ public class GameController {
             );
 
             @SuppressWarnings("unchecked")
-            List<Map<String, Object>> characters = (List<Map<String, Object>>) content.get("characters");
+            List<Map<String, Object>> characters = (List<Map<String, Object>>) content.getOrDefault("characters", List.of());
 
             String realCulprit = characters.stream()
                     .filter(c -> "범인".equals(c.get("role")))
@@ -306,5 +299,30 @@ public class GameController {
         } catch (Exception e) {
             return "{}";
         }
+    }
+
+    private Map<String, Integer> coerceSkillInts(Map<String, ?> in) {
+        HashMap<String, Integer> out = new HashMap<>();
+        String[] keys = new String[]{"logic", "creativity", "focus", "diversity", "depth"};
+        if (in != null) {
+            for (String k : keys) {
+                Object v = in.get(k);
+                int iv = 0;
+                if (v instanceof Number) {
+                    iv = (int) Math.round(((Number) v).doubleValue());
+                } else if (v instanceof String) {
+                    try {
+                        iv = (int) Math.round(Double.parseDouble((String) v));
+                    } catch (Exception ignored) {}
+                }
+                if (iv < 0) iv = 0;
+                if (iv > 100) iv = 100;
+                out.put(k, iv);
+            }
+        }
+        for (String k : keys) {
+            if (!out.containsKey(k)) out.put(k, 0);
+        }
+        return out;
     }
 }
