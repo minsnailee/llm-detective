@@ -58,6 +58,9 @@ public class SecurityConfig {
                     "/api/users/update-password"
                 ).authenticated()
 
+                // 업로드 API 허용 추가
+                .requestMatchers("/api/media/**").permitAll()
+
                 // -----------------------------
                 // 3) 그 외 나머지 요청은 기본적으로 인증 필요
                 // -----------------------------

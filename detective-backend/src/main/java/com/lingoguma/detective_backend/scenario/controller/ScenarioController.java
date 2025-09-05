@@ -7,7 +7,6 @@ import com.lingoguma.detective_backend.user.entity.CustomUserDetails;
 import com.lingoguma.detective_backend.user.entity.Role;
 import lombok.RequiredArgsConstructor;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -29,26 +28,25 @@ public class ScenarioController {
         return ResponseEntity.ok(scenarioService.getPublishedScenarios());
     }
 
-    // 모든 시나리오 조회
-    // @GetMapping
-    // public ResponseEntity<List<ScenarioResponse>> getAll() {
-    //     return ResponseEntity.ok(scenarioService.getAllScenarios());
-    // }
-
-    // 단일 시나리오 조회
+    /**
+     * 단일 시나리오 조회
+     * - 기본: PUBLISHED만 누구나 조회 가능
+     * - preview=true: 관리자/전문가 또는 작성자만 조회 가능
+     */
     @GetMapping("/{id}")
-    public ResponseEntity<ScenarioResponse> getOne(@PathVariable Integer id) {
-        ScenarioResponse scenario = scenarioService.getScenarioById(id);
-
-        // 승인 안 된 시나리오는 일반 API에서 막음
-        if (!scenario.getScenStatus().equals("PUBLISHED")) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        }
-
+    public ResponseEntity<ScenarioResponse> getOne(
+            @PathVariable Integer id,
+            @RequestParam(name = "preview", defaultValue = "false") boolean preview,
+            @AuthenticationPrincipal CustomUserDetails user
+    ) {
+        ScenarioResponse scenario = scenarioService.getScenarioForRead(id, preview, user);
         return ResponseEntity.ok(scenario);
     }
 
-    // 전문가/관리자 전용: 시나리오 작성
+    /**
+     * 전문가/관리자 전용: 시나리오 작성
+     * (contentJson 안에 map/background, map/floorplan, characters[].image 등이 모두 포함되어 전송됨)
+     */
     @PostMapping("/create")
     public ResponseEntity<?> createScenario(
             @RequestBody ScenarioRequest request,
@@ -62,7 +60,10 @@ public class ScenarioController {
             return ResponseEntity.status(403).body("전문가 또는 관리자 권한이 필요합니다.");
         }
 
-        ScenarioResponse saved = scenarioService.createScenario(request, userDetails.getUser().getUserIdx());
+        ScenarioResponse saved = scenarioService.createScenario(
+                request,
+                userDetails.getUser().getUserIdx()
+        );
         return ResponseEntity.ok(saved);
     }
 }
