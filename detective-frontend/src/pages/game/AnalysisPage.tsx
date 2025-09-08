@@ -184,14 +184,17 @@ export default function AnalysisPage() {
                     err,
                 });
 
-                if (status === 403)
-                    setErrorMsg("이 결과를 볼 권한이 없습니다.");
-                else if (status === 404)
-                    setErrorMsg("결과를 찾을 수 없습니다.");
-                else
+                if (status === 401) {
+                    setErrorMsg("로그인이 필요합니다. (401)");
+                } else if (status === 403) {
+                    setErrorMsg("이 결과를 볼 권한이 없습니다. (403)");
+                } else if (status === 404) {
+                    setErrorMsg("결과를 찾을 수 없습니다. (404)");
+                } else {
                     setErrorMsg(
                         "결과 불러오기 실패. 잠시 후 다시 시도해주세요."
                     );
+                }
             } finally {
                 setLoading(false);
             }

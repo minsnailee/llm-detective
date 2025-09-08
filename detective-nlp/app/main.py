@@ -1,5 +1,5 @@
 # app/main.py
-from typing import Any, Dict, List, Optional, Literal, Annotated
+from typing import Any, Dict, List, Optional, Literal, Annotated, Tuple
 from fastapi import FastAPI, Query
 from pydantic import BaseModel
 import numpy as np
@@ -24,6 +24,7 @@ class AnalyzeRequest(BaseModel):
     caseSummary: Optional[str] = None
     facts: Optional[List[str]] = None
     finalAnswer: Optional[Dict[str, Any]] = None
+    goldAnswer: Optional[Dict[str, Any]] = None  # 정답 메타(범인/동기/수법/핵심증거)
     timings: Optional[Dict[str, Any]] = None
     engine: Optional[Literal["hf","dummy"]] = None
 
@@ -59,6 +60,31 @@ def extract_user_questions(log_json: Dict[str, Any]) -> List[str]:
         if spk == "PLAYER" and msg:
             qs.append(msg)
     return qs
+
+def safe_str(x: Any) -> str:
+    return str(x or "").strip()
+
+def safe_lower(x: Any) -> str:
+    return safe_str(x).lower()
+
+def as_list(obj: Any) -> List[Any]:
+    if isinstance(obj, list):
+        return obj
+    if obj is None:
+        return []
+    return [obj]
+
+def prf(selected: List[str], gold: List[str]) -> Tuple[float,float,float]:
+    sel = set([safe_str(s) for s in selected if safe_str(s)])
+    gd  = set([safe_str(s) for s in gold if safe_str(s)])
+    tp = len(sel & gd)
+    p = tp / max(1, len(sel))
+    r = tp / max(1, len(gd))
+    if p + r == 0:
+        f1 = 0.0
+    else:
+        f1 = 2 * p * r / (p + r)
+    return p, r, f1
 
 # === 무의미 입력 판정 ===
 _TRIVIAL_PATTERNS = [
@@ -132,6 +158,15 @@ def embed(texts: List[str]) -> np.ndarray:
         vec = (hidden * mask).sum(dim=1) / mask.sum(dim=1)
     return vec.cpu().numpy()
 
+def cos_sim_text(a: str, b: str, default: float = 0.0) -> float:
+    a = safe_str(a); b = safe_str(b)
+    if not a or not b:
+        return default
+    E = embed([a, b])
+    if E.shape[0] < 2:
+        return default
+    return float(cosine_similarity(E[0:1], E[1:2])[0,0])
+
 # 2) 한국어 NLI (쌍문장 직접 forward)
 ZSC_MODEL = "Huffon/klue-roberta-base-nli"
 zsc_tokenizer = AutoTokenizer.from_pretrained(ZSC_MODEL, use_fast=False)
@@ -162,6 +197,46 @@ def zsc_score(texts: List[str], pos: str, neg: str) -> float:
             entail_prob = 0.5
         probs.append(entail_prob)
     return float(np.mean(probs)) if probs else 0.5
+
+# ========================
+# 정답 메타 비교(범인/수법/동기/증거)
+# ========================
+def compare_to_gold(final_answer: Dict[str, Any], gold_answer: Dict[str, Any]) -> Dict[str, float]:
+    fa = final_answer or {}
+    ga = gold_answer or {}
+
+    # 범인 일치: id 또는 이름 대소문자/공백 무시 비교
+    chosen = safe_lower(fa.get("culprit"))
+    gold_id = safe_lower(ga.get("culpritId"))
+    gold_name = safe_lower(ga.get("culpritName"))
+    culprit_exact = 1.0 if (chosen and (chosen == gold_id or chosen == gold_name)) else 0.0
+
+    # 수법/동기 유사도: how ↔ method, why ↔ motive
+    how = safe_str(fa.get("how"))
+    method_gold = safe_str(ga.get("method"))
+    method_sim = cos_sim_text(how, method_gold, default=0.0)
+
+    why = safe_str(fa.get("why"))
+    motive_gold = safe_str(ga.get("motive"))
+    motive_sim = cos_sim_text(why, motive_gold, default=0.0)
+
+    # 핵심 증거: evidence_selected ↔ keyEvidenceIds
+    selected_ids = [safe_str(x) for x in as_list(fa.get("evidence_selected"))]
+    key_ids = [safe_str(x) for x in as_list(ga.get("keyEvidenceIds"))]
+    p, r, f1 = prf(selected_ids, key_ids)
+
+    # 종합 품질(0~1): 범인 0.4, 수법 0.2, 동기 0.2, 증거F1 0.2
+    answer_quality = float(0.4 * culprit_exact + 0.2 * method_sim + 0.2 * motive_sim + 0.2 * f1)
+
+    return {
+        "culprit_exact": float(culprit_exact),
+        "method_sim": float(method_sim),
+        "motive_sim": float(motive_sim),
+        "evidence_precision": float(p),
+        "evidence_recall": float(r),
+        "evidence_f1": float(f1),
+        "answer_quality": float(answer_quality),
+    }
 
 # ========================
 # 핵심 스코어 함수
@@ -210,6 +285,9 @@ def score_hf(req: AnalyzeRequest) -> AnalyzeResponse:
     else:
         novelty = 0.6 if n_meaningful == 0 else 0.5
 
+    # === 정답 메타 비교(범인/수법/동기/증거) ===
+    gold_cmp = compare_to_gold(req.finalAnswer or {}, req.goldAnswer or {})
+
     # === 기본 스케일 ===
     focus = scale_0_100(0.5 * focus_sim + 0.5 * focus_z, lo=0.2, hi=0.85)
     logic = scale_0_100(0.6 * logic_z + 0.4 * focus_sim, lo=0.15, hi=0.85)
@@ -234,11 +312,16 @@ def score_hf(req: AnalyzeRequest) -> AnalyzeResponse:
     elif avg_len < 8:
         engagement_factor *= 0.8
 
+    # === 정답 메타 보너스(참여도 반영, 무조건 큰 영향은 아님)
+    # 범인/수법/동기/증거를 잘 맞출수록 논리·깊이에 소폭 가산
+    answer_bonus_logic = int(round(20.0 * gold_cmp["answer_quality"] * engagement_factor))
+    answer_bonus_depth = int(round(10.0 * gold_cmp["answer_quality"] * engagement_factor))
+
     # 최종 스코어 정규화
-    logic = normalize_score(logic, per_q_penalties, engagement_factor)
+    logic = normalize_score(logic + answer_bonus_logic, per_q_penalties, engagement_factor)
     focus = normalize_score(focus, per_q_penalties, engagement_factor)
     creativity = normalize_score(creativity, per_q_penalties, engagement_factor)
-    depth = clamp_0_100(int(round(depth * engagement_factor)))
+    depth = clamp_0_100(int(round((depth + answer_bonus_depth) * engagement_factor)))
     diversity = clamp_0_100(int(round(diversity * engagement_factor)))
 
     # 의미있는 질문 0개면 모든 점수 바닥으로
@@ -249,16 +332,18 @@ def score_hf(req: AnalyzeRequest) -> AnalyzeResponse:
         depth = min(depth, 10)
         diversity = min(diversity, 15)
 
-    # === 로그 출력 ===
-    print("=== [NLP Analyzer] HF ===")
-    print(f"- Topic        : {topic}")
-    print(f"- n_user       : {n_user}, n_meaningful: {n_meaningful}, n_trivial: {n_trivial}, trivial_ratio: {trivial_ratio:.3f}")
-    print(f"- avg_len      : {avg_len:.2f}")
-    print(f"- focus_sim    : {focus_sim:.3f}, focus_z: {focus_z:.3f}")
-    print(f"- logic_z      : {logic_z:.3f}, depth_z: {depth_z:.3f}, creat_z: {creat_z:.3f}")
-    print(f"- diversity_raw: {diversity_raw:.3f}, novelty: {novelty:.3f}")
-    print(f"- penalties(sum): {sum(per_q_penalties)} ; engagement_factor: {engagement_factor:.3f}")
-    print(f"- FINAL skills : focus={focus}, logic={logic}, depth={depth}, diversity={diversity}, creativity={creativity}")
+    # === 로그 출력(영문 라벨 + 한글 설명) ===
+    print("=== [NLP Analyzer] HF (고급모델) ===")
+    print(f"- Topic (사건 주제): {topic}")
+    print(f"- n_user (총 질문 수): {n_user}, n_meaningful (의미있는 질문 수): {n_meaningful}, n_trivial (무의미 질문 수): {n_trivial}, trivial_ratio (무의미 비율): {trivial_ratio:.3f}")
+    print(f"- avg_len (평균 길이): {avg_len:.2f}")
+    print(f"- focus_sim (단서집중 유사도): {focus_sim:.3f}, focus_z (집중 NLI): {focus_z:.3f}")
+    print(f"- logic_z (논리 NLI): {logic_z:.3f}, depth_z (깊이 NLI): {depth_z:.3f}, creat_z (창의 NLI): {creat_z:.3f}")
+    print(f"- diversity_raw (질문 다양성 원값): {diversity_raw:.3f}, novelty (참신성): {novelty:.3f}")
+    print(f"- GOLD compare (정답 비교): culprit_exact={gold_cmp['culprit_exact']:.3f}, method_sim={gold_cmp['method_sim']:.3f}, motive_sim={gold_cmp['motive_sim']:.3f}, evidence_f1={gold_cmp['evidence_f1']:.3f}")
+    print(f"- penalties(sum) (패널티 합): {sum(per_q_penalties)} ; engagement_factor (참여 계수): {engagement_factor:.3f}")
+    print(f"- answer_bonus_logic/depth (정답 보너스 논리/깊이): {answer_bonus_logic}/{answer_bonus_depth}")
+    print(f"- FINAL skills (최종 점수) : focus={focus}, logic={logic}, depth={depth}, diversity={diversity}, creativity={creativity}")
 
     skills = {
         "logic": logic,
@@ -269,11 +354,13 @@ def score_hf(req: AnalyzeRequest) -> AnalyzeResponse:
     }
 
     sub = {
+        # 활동 통계
         "n_user_turns": float(n_user),
         "n_meaningful": float(n_meaningful),
         "n_trivial": float(n_trivial),
         "trivial_ratio": float(trivial_ratio),
         "avg_len": float(avg_len),
+        # 집중/논리/깊이/창의 관련
         "focus_sim": float(focus_sim),
         "focus_z": float(focus_z),
         "logic_z": float(logic_z),
@@ -281,8 +368,17 @@ def score_hf(req: AnalyzeRequest) -> AnalyzeResponse:
         "creativity_z": float(creat_z),
         "diversity_raw": float(diversity_raw),
         "novelty": float(novelty),
+        # 패널티/참여
         "penalty_sum": float(sum(per_q_penalties)),
         "engagement_factor": float(engagement_factor),
+        # 정답 비교 서브지표
+        "culprit_exact": gold_cmp["culprit_exact"],
+        "method_sim": gold_cmp["method_sim"],
+        "motive_sim": gold_cmp["motive_sim"],
+        "evidence_precision": gold_cmp["evidence_precision"],
+        "evidence_recall": gold_cmp["evidence_recall"],
+        "evidence_f1": gold_cmp["evidence_f1"],
+        "answer_quality": gold_cmp["answer_quality"],
     }
     return AnalyzeResponse(engine="hf", skills=skills, submetrics=sub)
 
@@ -299,7 +395,7 @@ def score_dummy(req: AnalyzeRequest) -> AnalyzeResponse:
     n_meaningful = len(meaningful_qs)
     trivial_ratio = (n_trivial / n_user) if n_user > 0 else 1.0
 
-    # 간단 휴리스틱
+    # 간단 휴리스틱(자카드/길이 기반)
     if meaningful_qs and base_tokens:
         sims = [jaccard(set(tokenize_ko(q)), base_tokens) for q in meaningful_qs]
         focus_raw = float(np.mean(sims))
@@ -316,6 +412,24 @@ def score_dummy(req: AnalyzeRequest) -> AnalyzeResponse:
         focus_raw = logic_raw = depth_raw = diversity_raw = 0.2 if n_meaningful == 0 else 0.5
         novelty = 0.6 if n_meaningful == 0 else 0.5
 
+    # 정답 비교(간이판정: 임베딩 없이 토큰 유사도)
+    fa = req.finalAnswer or {}
+    ga = req.goldAnswer or {}
+
+    chosen = safe_lower(fa.get("culprit"))
+    gold_id = safe_lower(ga.get("culpritId"))
+    gold_name = safe_lower(ga.get("culpritName"))
+    culprit_exact = 1.0 if (chosen and (chosen == gold_id or chosen == gold_name)) else 0.0
+
+    method_sim = jaccard(set(tokenize_ko(safe_str(fa.get("how")))), set(tokenize_ko(safe_str(ga.get("method")))))
+    motive_sim = jaccard(set(tokenize_ko(safe_str(fa.get("why")))), set(tokenize_ko(safe_str(ga.get("motive")))))
+
+    p, r, f1 = prf([safe_str(x) for x in as_list(fa.get("evidence_selected"))],
+                   [safe_str(x) for x in as_list(ga.get("keyEvidenceIds"))])
+
+    answer_quality = float(0.4 * culprit_exact + 0.2 * method_sim + 0.2 * motive_sim + 0.2 * f1)
+
+    # 기본 스케일
     focus = scale_0_100(focus_raw, lo=0.2, hi=0.85)
     logic = scale_0_100(logic_raw, lo=0.15, hi=0.85)
     depth = scale_0_100(depth_raw, lo=0.2, hi=0.9)
@@ -335,10 +449,13 @@ def score_dummy(req: AnalyzeRequest) -> AnalyzeResponse:
     elif avg_len < 8:
         engagement_factor *= 0.8
 
-    logic = normalize_score(logic, per_q_penalties, engagement_factor)
+    answer_bonus_logic = int(round(20.0 * answer_quality * engagement_factor))
+    answer_bonus_depth = int(round(10.0 * answer_quality * engagement_factor))
+
+    logic = normalize_score(logic + answer_bonus_logic, per_q_penalties, engagement_factor)
     focus = normalize_score(focus, per_q_penalties, engagement_factor)
     creativity = normalize_score(creativity, per_q_penalties, engagement_factor)
-    depth = clamp_0_100(int(round(depth * engagement_factor)))
+    depth = clamp_0_100(int(round((depth + answer_bonus_depth) * engagement_factor)))
     diversity = clamp_0_100(int(round(diversity * engagement_factor)))
 
     if n_meaningful == 0:
@@ -348,13 +465,15 @@ def score_dummy(req: AnalyzeRequest) -> AnalyzeResponse:
         depth = min(depth, 10)
         diversity = min(diversity, 15)
 
-    print("=== [NLP Analyzer] DUMMY ===")
-    print(f"- n_user       : {n_user}, n_meaningful: {n_meaningful}, n_trivial: {n_trivial}, trivial_ratio: {trivial_ratio:.3f}")
-    print(f"- avg_len      : {avg_len:.2f}")
-    print(f"- focus_raw    : {focus_raw:.3f}, logic_raw: {logic_raw:.3f}, depth_raw: {depth_raw:.3f}")
-    print(f"- diversity_raw: {diversity_raw:.3f}, novelty: {novelty:.3f}")
-    print(f"- penalties(sum): {sum(per_q_penalties)} ; engagement_factor: {engagement_factor:.3f}")
-    print(f"- FINAL skills : focus={focus}, logic={logic}, depth={depth}, diversity={diversity}, creativity={creativity}")
+    print("=== [NLP Analyzer] DUMMY (대체모델) ===")
+    print(f"- n_user (총 질문 수): {n_user}, n_meaningful (의미있는 질문 수): {n_meaningful}, n_trivial (무의미 질문 수): {n_trivial}, trivial_ratio (무의미 비율): {trivial_ratio:.3f}")
+    print(f"- avg_len (평균 길이): {avg_len:.2f}")
+    print(f"- focus_raw (단서집중 원값): {focus_raw:.3f}, logic_raw (논리 원값): {logic_raw:.3f}, depth_raw (깊이 원값): {depth_raw:.3f}")
+    print(f"- diversity_raw (다양성 원값): {diversity_raw:.3f}, novelty (참신성): {novelty:.3f}")
+    print(f"- GOLD compare (정답 비교): culprit_exact={culprit_exact:.3f}, method_sim={method_sim:.3f}, motive_sim={motive_sim:.3f}, evidence_f1={f1:.3f}")
+    print(f"- penalties(sum) (패널티 합): {sum(per_q_penalties)} ; engagement_factor (참여 계수): {engagement_factor:.3f}")
+    print(f"- answer_bonus_logic/depth (정답 보너스 논리/깊이): {answer_bonus_logic}/{answer_bonus_depth}")
+    print(f"- FINAL skills (최종 점수) : focus={focus}, logic={logic}, depth={depth}, diversity={diversity}, creativity={creativity}")
 
     skills = {
         "logic": logic, "focus": focus, "creativity": creativity,
@@ -368,6 +487,14 @@ def score_dummy(req: AnalyzeRequest) -> AnalyzeResponse:
         "avg_len": float(avg_len),
         "penalty_sum": float(sum(per_q_penalties)),
         "engagement_factor": float(engagement_factor),
+        # 정답 비교 서브지표(간이)
+        "culprit_exact": float(culprit_exact),
+        "method_sim": float(method_sim),
+        "motive_sim": float(motive_sim),
+        "evidence_precision": float(p),
+        "evidence_recall": float(r),
+        "evidence_f1": float(f1),
+        "answer_quality": float(answer_quality),
     }
     return AnalyzeResponse(engine="dummy", skills=skills, submetrics=sub)
 
@@ -388,5 +515,5 @@ def analyze(
     try:
         return score_hf(req)
     except Exception as e:
-        print("[WARN] HF engine failed, fallback to dummy:", e)
+        print("[WARN] HF engine failed, fallback to dummy (HF 엔진 실패, 대체모델로 전환):", e)
         return score_dummy(req)

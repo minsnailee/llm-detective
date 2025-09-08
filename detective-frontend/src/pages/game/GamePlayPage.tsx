@@ -1,141 +1,52 @@
+import React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api } from "../../shared/api/client";
+import IntroOverlay from "./components/IntroOverlay";
+
+import TopBar from "./components/TopBar";
+import Stage from "./components/Stage";
+import AskPanel from "./components/AskPanel";
+import ChatLogDocked from "./components/ChatLogDocked";
+import ChatLogWindow from "./components/ChatLogWindow";
+import { SummaryModal, FloorplanModal, NotesModal } from "./components/Modals";
+
+import {
+    toAbsoluteMediaUrl,
+    type ScenarioDetail,
+    type ParsedContent,
+    type CharacterDoc,
+    type EvidenceDoc,
+    type ChatMsg,
+} from "./gameTypes";
+import { postAskSafe } from "./gameApi";
 
 /* =========================
-   Types (백엔드/JSON 스키마 호환)
-   ========================= */
-interface ScenarioDetail {
-    scenIdx: number;
-    scenTitle: string;
-    scenSummary: string;
-    scenLevel: number;
-    contentJson?: string;
-}
-
-interface CharacterDoc {
-    id?: string; // "suspect_1"
-    name: string;
-    age?: number;
-    gender?: string;
-    job?: string;
-    personality?: string;
-    speaking_style?: string;
-    truth_bias?: number;
-    alibi?: any;
-    outfit?: string;
-    sample_line?: string;
-    image?: string; // 시나리오 폼에서 저장
-}
-
-interface EvidenceDoc {
-    id: string; // "e1"
-    name: string;
-    desc?: string;
-    importance?: "HIGH" | "MEDIUM" | "LOW";
-    categories?: string[];
-    keywords?: string[]; // 시나리오 폼에서 저장
-}
-
-interface MapDoc {
-    background?: string; // 배경 이미지 URL
-    floorplan?: string; // 도면 이미지 URL
-}
-
-interface ParsedContent {
-    scenario?: {
-        id?: string;
-        title?: string;
-        summary?: string;
-        difficulty?: number;
-        objective?: string;
-        rules?: string[];
-    };
-    map?: MapDoc;
-    characters?: CharacterDoc[];
-    evidence?: EvidenceDoc[];
-    locations?: { id: string; name: string; desc?: string }[];
-    timeline?: {
-        id: string;
-        time: string;
-        event: string;
-        subjectId?: string;
-    }[];
-    answer?: {
-        culprit?: string;
-        motive?: string;
-        method?: string;
-        key_evidence?: string[];
-    };
-    evaluation?: any;
-}
-
-interface AskResponse {
-    answer: string;
-}
-
-type ChatMsg = {
-    id: string;
-    ts: number; // epoch sec
-    role: "player" | "npc";
-    suspectName: string;
-    text: string;
-};
-
-/* =========================
-   안전한 엔드포인트 폴백
-   ========================= */
-const ASK_ENDPOINTS = ["game/ask", "/api/game/ask", "/game/ask"] as const;
-
-// 401/403/404는 다음 후보로 폴백, 그 외 에러는 바로 throw
-async function postAskSafe(payload: {
-    sessionId: number;
-    suspectName: string;
-    userText: string;
-}): Promise<string> {
-    let lastErr: any = null;
-    for (const ep of ASK_ENDPOINTS) {
-        try {
-            const res = await api.post<AskResponse>(ep, payload);
-            return res.data?.answer ?? "";
-        } catch (err: any) {
-            const s = err?.response?.status;
-            if (s === 401 || s === 403 || s === 404) {
-                lastErr = err;
-                continue;
-            }
-            throw err;
-        }
-    }
-    throw lastErr ?? new Error("ASK endpoint not reachable");
-}
-
-/* =========================
-   컴포넌트
+   Component
    ========================= */
 export default function GamePlayPage() {
+    const [showIntro, setShowIntro] = useState(true);
+
     const { scenarioId } = useParams();
     const [searchParams] = useSearchParams();
     const sessionId = Number(searchParams.get("sessionId"));
     const navigate = useNavigate();
 
-    // 시나리오/컨텐츠
+    // scenario/content
     const [scenario, setScenario] = useState<ScenarioDetail | null>(null);
     const [content, setContent] = useState<ParsedContent | null>(null);
 
-    // 캐릭터/선택
+    // characters/selection
     const [characters, setCharacters] = useState<CharacterDoc[]>([]);
     const [selectedChar, setSelectedChar] = useState<CharacterDoc | null>(null);
+    const [askTarget, setAskTarget] = useState<"ALL" | string>("ALL");
 
-    // 질문 대상 상태: 'ALL' 또는 특정 용의자 이름
-    const [askTarget, setAskTarget] = useState<"ALL" | string>("");
-
-    // 채팅/입력/로딩
+    // chat
     const [chat, setChat] = useState<ChatMsg[]>([]);
     const [input, setInput] = useState("");
     const [asking, setAsking] = useState(false);
 
-    // 말풍선(5초 표시)
+    // bubble (5s) on stage (간단 버전)
     const [bubble, setBubble] = useState<{
         text: string;
         suspectName: string | null;
@@ -147,35 +58,29 @@ export default function GamePlayPage() {
     });
     const bubbleTimerRef = useRef<number | null>(null);
 
-    // 로그 필터 (전체 / 용의자별)
+    // log filter
     const [logFilter, setLogFilter] = useState<string>("ALL");
 
-    // 개요 토글
+    // summary/notes/floorplan modals
     const [showSummary, setShowSummary] = useState(false);
-
-    // 메모(사건수첩) 모달
     const [showNotes, setShowNotes] = useState(false);
     const [notes, setNotes] = useState("");
-
-    // 플로어플랜(지도) 모달
     const [showFloorplan, setShowFloorplan] = useState(false);
 
-    // 메인 타이머
+    // timer
     const [seconds, setSeconds] = useState(0);
     const timerRef = useRef<number | null>(null);
     const TIMER_KEY = sessionId
         ? `timer_session_${sessionId}`
         : "timer_session_unknown";
 
-    // 수집한 단서 (evidence.id[])
+    // collected evidence
     const [collected, setCollected] = useState<string[]>([]);
 
-    // 로그 스크롤
-    const logEndRef = useRef<HTMLDivElement | null>(null);
+    // log scroll
+    const logEndRef = useRef<HTMLDivElement>(null!);
 
-    /* =========================
-     LocalStorage Keys
-     ========================= */
+    // local storage keys
     const NOTE_KEY = useMemo(
         () => `note_${scenarioId || "scen"}_${sessionId || "sess"}`,
         [scenarioId, sessionId]
@@ -185,9 +90,108 @@ export default function GamePlayPage() {
         [scenarioId, sessionId]
     );
 
-    /* =========================
-     타이머 시작/정지
-     ========================= */
+    // === 대화로그 높이(3단): 접기/기본/펼치기 ===
+    const [chatSize, setChatSize] = useState<"min" | "mid" | "max">("mid");
+    const chatHeightsDock: Record<"min" | "mid" | "max", string> = {
+        min: "8vh",
+        mid: "22vh",
+        max: "40vh",
+    };
+    const chatHeightsWin: Record<"min" | "mid" | "max", number> = {
+        min: 180,
+        mid: 320,
+        max: 520,
+    };
+
+    // === 창모드 (떠있는 창) 토글 & 드래그 위치 / 리사이즈 ===
+    const [chatWindowed, setChatWindowed] = useState(false);
+
+    const [winPos, setWinPos] = useState<{ x: number; y: number }>({
+        x: 24,
+        y: 90,
+    });
+    const [dragging, setDragging] = useState(false);
+    const dragOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+    const [winSize, setWinSize] = useState<{ width: number; height: number }>({
+        width: 720,
+        height: chatHeightsWin["mid"],
+    });
+    const [resizing, setResizing] = useState(false);
+    const resizeStartRef = useRef<{
+        mx: number;
+        my: number;
+        w: number;
+        h: number;
+    }>({
+        mx: 0,
+        my: 0,
+        w: 720,
+        h: chatHeightsWin["mid"],
+    });
+
+    const MIN_W = 480;
+    const MIN_H = 180;
+
+    // 드래그 이동
+    useEffect(() => {
+        if (!dragging) return;
+        const onMove = (e: MouseEvent) => {
+            const nx =
+                (e as unknown as globalThis.MouseEvent).clientX -
+                dragOffsetRef.current.x;
+            const ny =
+                (e as unknown as globalThis.MouseEvent).clientY -
+                dragOffsetRef.current.y;
+            const maxX = window.innerWidth - winSize.width - 12;
+            const maxY = window.innerHeight - 120;
+            setWinPos({
+                x: Math.max(12, Math.min(nx, Math.max(12, maxX))),
+                y: Math.max(12, Math.min(ny, Math.max(12, maxY))),
+            });
+        };
+        const onUp = () => setDragging(false);
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
+        return () => {
+            window.removeEventListener("mousemove", onMove);
+            window.removeEventListener("mouseup", onUp);
+        };
+    }, [dragging, winSize.width]);
+
+    // 리사이즈 (우하단 핸들)
+    useEffect(() => {
+        if (!resizing) return;
+        const onMove = (e: MouseEvent) => {
+            const ev = e as unknown as globalThis.MouseEvent;
+            const dx = ev.clientX - resizeStartRef.current.mx;
+            const dy = ev.clientY - resizeStartRef.current.my;
+            let newW = resizeStartRef.current.w + dx;
+            let newH = resizeStartRef.current.h + dy;
+            // 경계 클램프
+            const maxW = Math.max(MIN_W, window.innerWidth - winPos.x - 12);
+            const maxH = Math.max(MIN_H, window.innerHeight - winPos.y - 80);
+            newW = Math.max(MIN_W, Math.min(newW, maxW));
+            newH = Math.max(MIN_H, Math.min(newH, maxH));
+            setWinSize({ width: newW, height: newH });
+        };
+        const onUp = () => setResizing(false);
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
+        return () => {
+            window.removeEventListener("mousemove", onMove);
+            window.removeEventListener("mouseup", onUp);
+        };
+    }, [resizing, winPos.x, winPos.y]);
+
+    // 프리셋 높이 변경 시, 창모드일 땐 높이만 동기화(너비 유지)
+    useEffect(() => {
+        if (!chatWindowed || resizing) return;
+        setWinSize((prev) => ({ ...prev, height: chatHeightsWin[chatSize] }));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [chatSize, chatWindowed]);
+
+    /* ========== Timer ========== */
     useEffect(() => {
         timerRef.current = window.setInterval(() => {
             setSeconds((s) => {
@@ -207,9 +211,7 @@ export default function GamePlayPage() {
         return `${m}:${sec}`;
     };
 
-    /* =========================
-     시나리오 로딩
-     ========================= */
+    /* ========== Load Scenario ========== */
     useEffect(() => {
         const fetchScenario = async () => {
             try {
@@ -227,7 +229,7 @@ export default function GamePlayPage() {
                                 ? JSON.parse(res.data.contentJson)
                                 : (res.data.contentJson as any);
                     } catch (e) {
-                        console.error("contentJson 파싱 실패:", e);
+                        console.error("contentJson parse error:", e);
                     }
                 }
                 setContent(parsed);
@@ -236,7 +238,7 @@ export default function GamePlayPage() {
                 const first = chars.length ? chars[0] : null;
                 setSelectedChar((prev) => prev ?? first);
 
-                // 메모/수집 단서 불러오기
+                // restore notes/clues
                 const savedNote = localStorage.getItem(NOTE_KEY);
                 if (savedNote != null) setNotes(savedNote);
                 const savedClues = localStorage.getItem(CLUE_KEY);
@@ -247,22 +249,17 @@ export default function GamePlayPage() {
                     } catch {}
                 }
             } catch (err) {
-                console.error("시나리오 불러오기 실패:", err);
+                console.error("load scenario failed:", err);
             }
         };
         fetchScenario();
     }, [scenarioId, NOTE_KEY, CLUE_KEY]);
 
-    // selectedChar가 정해졌고 askTarget이 비어있다면, 기본 질문 대상을 그 인물로 세팅
+    /* ========== Defaults/Effects ========== */
     useEffect(() => {
-        if (!askTarget && selectedChar?.name) {
-            setAskTarget(selectedChar.name);
-        }
+        if (!askTarget && selectedChar?.name) setAskTarget(selectedChar.name);
     }, [selectedChar, askTarget]);
 
-    /* =========================
-     말풍선 5초 표시 관리
-     ========================= */
     const showBubble = (suspectName: string, text: string) => {
         if (bubbleTimerRef.current !== null) {
             clearTimeout(bubbleTimerRef.current);
@@ -275,16 +272,11 @@ export default function GamePlayPage() {
         }, 5000) as unknown as number;
     };
 
-    /* =========================
-     로그 자동 스크롤
-     ========================= */
     useEffect(() => {
         logEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [chat, logFilter]);
+    }, [chat, logFilter, chatSize, chatWindowed]);
 
-    /* =========================
-     증거 자동 탐지(프론트 간이판)
-     ========================= */
+    /* ========== Evidence Detection (Light) ========== */
     const detectEvidenceInText = (text: string) => {
         if (!content?.evidence || !text) return;
         const lower = text.toLowerCase();
@@ -298,9 +290,7 @@ export default function GamePlayPage() {
                 .map((t) => t.toLowerCase());
             if (!terms.length) continue;
             const hit = terms.some((t) => t && lower.includes(t));
-            if (hit && !collected.includes(ev.id)) {
-                newlyFound.push(ev.id);
-            }
+            if (hit && !collected.includes(ev.id)) newlyFound.push(ev.id);
         }
         if (newlyFound.length > 0) {
             const next = [...collected, ...newlyFound];
@@ -309,9 +299,7 @@ export default function GamePlayPage() {
         }
     };
 
-    /* =========================
-     질문하기 (개별/전체)
-     ========================= */
+    /* ========== Ask ========== */
     const handleAsk = async () => {
         const question = input.trim();
         if (!question) return;
@@ -322,16 +310,12 @@ export default function GamePlayPage() {
             );
             return;
         }
-
-        // 대상 유효성 체크
         if (askTarget !== "ALL" && !selectedChar?.name) {
             alert("질문 대상을 선택하세요.");
             return;
         }
 
         const now = Math.floor(Date.now() / 1000);
-
-        // 플레이어 로그 (전체 여부 표시)
         setChat((prev) => [
             ...prev,
             {
@@ -343,18 +327,14 @@ export default function GamePlayPage() {
                 text: question,
             },
         ]);
-
-        // 질문에서도 단서 자동 탐지
         detectEvidenceInText(question);
 
         setAsking(true);
         try {
             if (askTarget === "ALL") {
-                // 무대 3인에게 "순차" 호출 (403/레이트리밋 회피)
                 const targets = stageChars.filter((t) => t?.name?.trim());
                 if (targets.length === 0)
                     throw new Error("질문할 대상이 없습니다.");
-
                 for (let i = 0; i < targets.length; i++) {
                     const t = targets[i];
                     try {
@@ -363,7 +343,6 @@ export default function GamePlayPage() {
                             suspectName: t.name,
                             userText: question,
                         });
-
                         const ts = Math.floor(Date.now() / 1000);
                         setChat((prev) => [
                             ...prev,
@@ -375,7 +354,6 @@ export default function GamePlayPage() {
                                 text: ans,
                             },
                         ]);
-
                         if (ans) showBubble(t.name, ans);
                         detectEvidenceInText(ans);
                     } catch (err: any) {
@@ -400,19 +378,16 @@ export default function GamePlayPage() {
                     }
                 }
             } else {
-                // 단일 대상
                 const targetName = selectedChar!.name;
                 if (!targetName?.trim()) {
                     alert("질문 대상을 선택하세요.");
                     return;
                 }
-
                 const answerText = await postAskSafe({
                     sessionId,
                     suspectName: targetName,
                     userText: question,
                 });
-
                 const ts2 = Math.floor(Date.now() / 1000);
                 setChat((prev) => [
                     ...prev,
@@ -424,11 +399,9 @@ export default function GamePlayPage() {
                         text: answerText,
                     },
                 ]);
-
                 showBubble(targetName, answerText);
                 detectEvidenceInText(answerText);
             }
-
             setInput("");
         } catch (err: any) {
             const s = err?.response?.status;
@@ -449,9 +422,7 @@ export default function GamePlayPage() {
         if (e.key === "Enter") handleAsk();
     };
 
-    /* =========================
-     결과 페이지로 이동
-     ========================= */
+    /* ========== Result ========== */
     const goResult = () => {
         if (!sessionId) {
             alert(
@@ -473,17 +444,25 @@ export default function GamePlayPage() {
         );
     };
 
-    /* =========================
-     로그 필터링
-     ========================= */
+    /* ========== Derived ========== */
+
+    // [FIX] 3명 제한 해제: 모든 용의자를 무대로 보냅니다.
+    const stageChars = useMemo(() => characters || [], [characters]);
+
+    useEffect(() => {
+        if (!selectedChar) return;
+        const onStage = stageChars.find((c) => c.name === selectedChar.name);
+        if (!onStage && stageChars[0]) setSelectedChar(stageChars[0]);
+    }, [stageChars, selectedChar]);
+
+    const backgroundUrl = toAbsoluteMediaUrl(content?.map?.background);
+    const floorplanUrl = toAbsoluteMediaUrl(content?.map?.floorplan);
+
     const filteredChat = useMemo(() => {
         if (logFilter === "ALL") return chat;
         return chat.filter((m) => m.suspectName === logFilter);
     }, [chat, logFilter]);
 
-    /* =========================
-     수집 단서 유틸
-     ========================= */
     const evidenceById = useMemo(() => {
         const map = new Map<string, EvidenceDoc>();
         (content?.evidence || []).forEach((e) => map.set(e.id, e));
@@ -496,38 +475,6 @@ export default function GamePlayPage() {
         localStorage.setItem(CLUE_KEY, JSON.stringify(next));
     };
 
-    const addCollectedManually = (id: string) => {
-        if (!collected.includes(id)) {
-            const next = [...collected, id];
-            setCollected(next);
-            localStorage.setItem(CLUE_KEY, JSON.stringify(next));
-        }
-    };
-
-    /* =========================
-     무대에 동시에 보여줄 3인
-     ========================= */
-    const stageChars = useMemo(
-        () => (characters || []).slice(0, 3),
-        [characters]
-    );
-
-    // 선택된 인물이 무대 3인에 없다면 첫 번째로 보정
-    useEffect(() => {
-        if (!selectedChar) return;
-        const onStage = stageChars.find((c) => c.name === selectedChar.name);
-        if (!onStage && stageChars[0]) {
-            setSelectedChar(stageChars[0]);
-        }
-    }, [stageChars, selectedChar]);
-
-    /* =========================
-     UI
-     ========================= */
-    const backgroundUrl = content?.map?.background;
-    const floorplanUrl = content?.map?.floorplan;
-
-    // 대화로그 상단 고정 샘플대사(필터 적용)
     const pinnedSamples = useMemo(() => {
         const list =
             logFilter === "ALL"
@@ -536,803 +483,156 @@ export default function GamePlayPage() {
         return list.filter((c) => c.sample_line && c.name);
     }, [characters, logFilter]);
 
+    // === ChatWindow control helpers ===
+    const onHeaderMouseDown = (e: React.MouseEvent) => {
+        setDragging(true);
+        dragOffsetRef.current = {
+            x: (e as unknown as globalThis.MouseEvent).clientX - winPos.x,
+            y: (e as unknown as globalThis.MouseEvent).clientY - winPos.y,
+        };
+        (e as unknown as globalThis.MouseEvent).preventDefault();
+    };
+    const onResizeMouseDown = (e: React.MouseEvent) => {
+        setResizing(true);
+        const ev = e as unknown as globalThis.MouseEvent;
+        resizeStartRef.current = {
+            mx: ev.clientX,
+            my: ev.clientY,
+            w: winSize.width,
+            h: winSize.height,
+        };
+    };
+    const applyPresetHeight = (preset: "min" | "mid" | "max") => {
+        setChatSize(preset);
+        setWinSize((s) => ({ ...s, height: chatHeightsWin[preset] }));
+    };
+
+    const dockHeight = chatHeightsDock[chatSize];
+
     return (
-        <div
-            style={{
-                padding: 12,
-                display: "grid",
-                gridTemplateColumns: "280px 1fr 420px",
-                gap: 12,
-                height: "100vh",
-                boxSizing: "border-box",
-            }}
-        >
-            {/* =========== 좌측: 사건 컨트롤 =========== */}
-            <aside
+        <div className="relative w-screen h-screen overflow-hidden">
+            <IntroOverlay
+                open={!!scenario?.scenSummary && showIntro}
+                summary={scenario?.scenSummary || ""}
+                title={scenario?.scenTitle}
+                onClose={() => setShowIntro(false)}
+                bgUrl={backgroundUrl}
+            />
+
+            {/* 배경 */}
+            <div
+                className="absolute inset-0"
                 style={{
-                    display: "grid",
-                    gridTemplateRows: "auto auto auto auto auto 1fr",
-                    gap: 12,
-                    border: "1px solid #ddd",
-                    borderRadius: 12,
-                    padding: 12,
-                    background: "#fff",
+                    background: backgroundUrl
+                        ? `#000 url(${backgroundUrl}) center/cover no-repeat`
+                        : "linear-gradient(180deg,#0b0b0b,#151515)",
                 }}
-            >
-                {/* 사건 제목 */}
-                <div>
-                    <h3 style={{ margin: "4px 0" }}>
-                        {scenario?.scenTitle || "사건"}
-                    </h3>
-                    <div style={{ fontSize: 12, color: "#777" }}>
-                        난이도: {scenario?.scenLevel ?? "-"}
-                    </div>
-                </div>
+            />
 
-                {/* 사건 종료 버튼 (타이머 포함) */}
-                <button
-                    onClick={goResult}
-                    style={{
-                        padding: "12px 10px",
-                        borderRadius: 10,
-                        border: "1px solid #333",
-                        background: "#111",
-                        color: "#fff",
-                        fontWeight: 700,
-                    }}
-                >
-                    사건 종료 · {formatTime(seconds)}
-                </button>
-
-                {/* 개요 다시보기 */}
-                <div>
-                    <button
-                        onClick={() => setShowSummary((p) => !p)}
-                        style={{ width: "100%" }}
-                    >
-                        {showSummary ? "개요 닫기" : "개요 다시보기"}
-                    </button>
-                    {showSummary && (
-                        <div
-                            style={{
-                                border: "1px solid #ddd",
-                                borderRadius: 8,
-                                padding: 10,
-                                marginTop: 8,
-                                whiteSpace: "pre-line",
-                                background: "#fafafa",
-                            }}
-                        >
-                            {scenario?.scenSummary}
-                        </div>
-                    )}
-                </div>
-
-                {/* 지도/도면 보기 */}
-                <div>
-                    <button
-                        disabled={!floorplanUrl}
-                        onClick={() => setShowFloorplan(true)}
-                        style={{
-                            width: "100%",
-                            opacity: floorplanUrl ? 1 : 0.5,
-                        }}
-                        title={
-                            floorplanUrl
-                                ? "도면/지도 보기"
-                                : "도면 이미지가 없습니다"
-                        }
-                    >
-                        지도 / 도면 보기
-                    </button>
-                    {showFloorplan && floorplanUrl && (
-                        <div
-                            role="dialog"
-                            aria-modal
-                            style={{
-                                position: "fixed",
-                                inset: 0,
-                                background: "rgba(0,0,0,0.5)",
-                                display: "grid",
-                                placeItems: "center",
-                                zIndex: 90,
-                            }}
-                            onClick={() => setShowFloorplan(false)}
-                        >
-                            <div
-                                style={{
-                                    maxWidth: "90vw",
-                                    maxHeight: "90vh",
-                                    background: "#fff",
-                                    borderRadius: 12,
-                                    border: "1px solid #222",
-                                    overflow: "hidden",
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                            >
-                                <div
-                                    style={{
-                                        display: "flex",
-                                        alignItems: "center",
-                                        padding: "6px 10px",
-                                        borderBottom: "1px solid #ddd",
-                                        background: "#f7f7f7",
-                                    }}
-                                >
-                                    <strong>도면/지도</strong>
-                                    <button
-                                        style={{ marginLeft: "auto" }}
-                                        onClick={() => setShowFloorplan(false)}
-                                    >
-                                        닫기
-                                    </button>
-                                </div>
-                                <div
-                                    style={{
-                                        padding: 8,
-                                        overflow: "auto",
-                                        display: "grid",
-                                        placeItems: "center",
-                                        background: "#000",
-                                    }}
-                                >
-                                    <img
-                                        src={floorplanUrl}
-                                        alt="floorplan"
-                                        style={{
-                                            maxWidth: "100%",
-                                            maxHeight: "85vh",
-                                        }}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* 사건수첩(메모장) */}
-                <div>
-                    <button
-                        style={{ width: "100%" }}
-                        onClick={() => setShowNotes(true)}
-                    >
-                        사건수첩(메모장)
-                    </button>
-                    {showNotes && (
-                        <div
-                            role="dialog"
-                            aria-modal
-                            style={{
-                                position: "fixed",
-                                inset: 0,
-                                background: "rgba(0,0,0,0.45)",
-                                display: "grid",
-                                placeItems: "center",
-                                zIndex: 99,
-                            }}
-                            onClick={() => setShowNotes(false)}
-                        >
-                            <div
-                                style={{
-                                    width: 560,
-                                    maxWidth: "90vw",
-                                    background: "#fff",
-                                    borderRadius: 12,
-                                    padding: 12,
-                                    border: "1px solid #222",
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                            >
-                                <div
-                                    style={{
-                                        display: "flex",
-                                        alignItems: "center",
-                                        gap: 8,
-                                    }}
-                                >
-                                    <h4 style={{ margin: 0 }}>사건수첩</h4>
-                                    <div style={{ marginLeft: "auto" }}>
-                                        {/* 💡 changed: 저장 → 초기화 */}
-                                        <button
-                                            onClick={() => {
-                                                setNotes("");
-                                                localStorage.setItem(
-                                                    NOTE_KEY,
-                                                    ""
-                                                ); // 💡 changed: 즉시 초기화 저장
-                                            }}
-                                            title="메모 내용을 전부 비웁니다."
-                                        >
-                                            초기화
-                                        </button>
-                                        <button
-                                            style={{ marginLeft: 8 }}
-                                            onClick={() => setShowNotes(false)}
-                                        >
-                                            닫기
-                                        </button>
-                                    </div>
-                                </div>
-                                <textarea
-                                    value={notes}
-                                    onChange={(e) => {
-                                        // 💡 changed: 타이핑할 때 자동 저장
-                                        setNotes(e.target.value);
-                                        localStorage.setItem(
-                                            NOTE_KEY,
-                                            e.target.value
-                                        );
-                                    }}
-                                    placeholder="중요한 단서/의심 포인트를 메모하세요. (자동 저장)"
-                                    style={{
-                                        marginTop: 8,
-                                        width: "100%",
-                                        minHeight: 260,
-                                        borderRadius: 8,
-                                        border: "1px solid #ccc",
-                                        padding: 10,
-                                    }}
-                                />
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* 가이드/여백 */}
-                <div style={{ fontSize: 12, color: "#888" }}>
-                    왼쪽은 사건 제어, 오른쪽은 대화 로그입니다. 가운데 무대에서
-                    3명의 용의자를 동시에 확인하고, 라디오 버튼이나 카드를 눌러
-                    질문 대상을 선택하세요.
-                </div>
-            </aside>
-
-            {/* =========== 중앙: 수집 단서 + 무대(3인 동시) + 라디오 + 입력 =========== */}
-            <main
+            {/* 왼쪽 그라데이션 오버레이 */}
+            <div
+                className="absolute inset-y-0 left-0 w-[200px] pointer-events-none"
                 style={{
-                    display: "grid",
-                    gridTemplateRows: "auto 1fr auto",
-                    border: "1px solid #ddd",
-                    borderRadius: 12,
-                    overflow: "hidden",
-                    background: "#fff",
+                    background:
+                        "linear-gradient(to right, rgba(255,255,255,0.17), transparent)",
                 }}
-            >
-                {/* 상단: 수집한 단서 */}
-                <div
-                    style={{
-                        borderBottom: "1px solid #eee",
-                        padding: "8px 10px",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        background: "#f9fbff",
-                    }}
-                >
-                    <strong style={{ marginRight: 8 }}>수집한 단서</strong>
-                    <div
-                        style={{
-                            display: "flex",
-                            gap: 6,
-                            overflowX: "auto",
-                            flex: 1,
-                        }}
-                    >
-                        {collected.length === 0 && (
-                            <span style={{ color: "#888", fontSize: 12 }}>
-                                아직 없음
-                            </span>
-                        )}
-                        {collected.map((id) => {
-                            const ev = evidenceById.get(id);
-                            const label = ev?.name || id;
-                            return (
-                                <span
-                                    key={id}
-                                    title={ev?.desc || ""}
-                                    style={{
-                                        display: "inline-flex",
-                                        alignItems: "center",
-                                        gap: 6,
-                                        padding: "4px 8px",
-                                        borderRadius: 999,
-                                        border: "1px solid #cfe1ff",
-                                        background: "#eef4ff",
-                                        fontSize: 12,
-                                        whiteSpace: "nowrap",
-                                    }}
-                                >
-                                    {label}
-                                    <button
-                                        onClick={() => removeCollected(id)}
-                                        title="목록에서 제거"
-                                        style={{
-                                            border: "none",
-                                            background: "transparent",
-                                            cursor: "pointer",
-                                            fontWeight: 700,
-                                        }}
-                                    >
-                                        ×
-                                    </button>
-                                </span>
-                            );
-                        })}
-                    </div>
-                </div>
+            />
 
-                {/* 무대: 3명 동시 표시 */}
-                <div
-                    style={{
-                        position: "relative",
-                        background: backgroundUrl
-                            ? `#000 url(${backgroundUrl}) center/cover no-repeat`
-                            : "linear-gradient(180deg,#f8faff,#ffffff)",
-                        minHeight: 0,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        gap: 28,
-                        padding: "12px 12px 8px",
-                    }}
-                >
-                    {stageChars.length === 0 ? (
-                        <div style={{ color: "#666" }}>용의자가 없습니다.</div>
-                    ) : (
-                        stageChars.map((c, idx) => {
-                            // 전체 모드에서는 액티브 효과 제거
-                            const isSel =
-                                askTarget !== "ALL" &&
-                                selectedChar?.name === c.name;
-                            return (
-                                <div
-                                    key={idx}
-                                    onClick={() => {
-                                        setSelectedChar(c);
-                                        setAskTarget(c.name); // 카드 클릭 시 질문 대상 동기화
-                                    }}
-                                    title={c.sample_line || ""}
-                                    style={{
-                                        position: "relative",
-                                        cursor: "pointer",
-                                        display: "grid",
-                                        placeItems: "center",
-                                        gap: 8,
-                                        padding: 10,
-                                        borderRadius: 16,
-                                        border: isSel
-                                            ? "3px solid #5b8cff"
-                                            : "2px solid rgba(255,255,255,0.8)",
-                                        background: "rgba(255,255,255,0.8)",
-                                        transform: isSel
-                                            ? "scale(1.03)"
-                                            : "scale(1)",
-                                        transition: "transform .15s ease",
-                                        width: 220,
-                                    }}
-                                >
-                                    {/* 말풍선: 해당 카드 위에만 표시 */}
-                                    {bubble.showing &&
-                                        bubble.suspectName === c.name &&
-                                        bubble.text && (
-                                            <div
-                                                style={{
-                                                    position: "absolute",
-                                                    bottom: "110%",
-                                                    left: "50%",
-                                                    transform:
-                                                        "translateX(-50%)",
-                                                    background: "#ffffff",
-                                                    border: "2px solid #111",
-                                                    borderRadius: 16,
-                                                    padding: "8px 12px",
-                                                    boxShadow:
-                                                        "0 8px 18px rgba(0,0,0,0.18)",
-                                                    maxWidth: 360,
-                                                    zIndex: 2,
-                                                }}
-                                            >
-                                                <div
-                                                    style={{
-                                                        fontWeight: 700,
-                                                        marginBottom: 2,
-                                                    }}
-                                                >
-                                                    {c.name}
-                                                </div>
-                                                <div style={{ fontSize: 14 }}>
-                                                    {bubble.text}
-                                                </div>
-                                            </div>
-                                        )}
+            {/* 상단 바 (아이콘/단서/종료) */}
+            <TopBar
+                floorplanUrl={floorplanUrl}
+                onToggleSummary={() => setShowSummary((p) => !p)}
+                onOpenFloorplan={() => setShowFloorplan(true)}
+                onToggleNotes={() => setShowNotes(true)}
+                onEnd={goResult}
+                timeLabel={formatTime(seconds)}
+                collected={collected}
+                evidenceById={evidenceById}
+                removeCollected={removeCollected}
+            />
 
-                                    {/* 아바타 */}
-                                    {c.image ? (
-                                        <img
-                                            src={c.image}
-                                            alt={c.name}
-                                            style={{
-                                                width: 120,
-                                                height: 120,
-                                                borderRadius: "50%",
-                                                objectFit: "cover",
-                                                boxShadow:
-                                                    "0 8px 22px rgba(0,0,0,0.25)",
-                                                border: "3px solid rgba(255,255,255,0.9)",
-                                                background: "#fff",
-                                            }}
-                                        />
-                                    ) : (
-                                        <div
-                                            style={{
-                                                width: 120,
-                                                height: 120,
-                                                borderRadius: "50%",
-                                                display: "grid",
-                                                placeItems: "center",
-                                                background: "#fff",
-                                                boxShadow:
-                                                    "0 8px 22px rgba(0,0,0,0.25)",
-                                                border: "3px solid rgba(255,255,255,0.9)",
-                                                fontSize: 52,
-                                            }}
-                                        >
-                                            🙂
-                                        </div>
-                                    )}
-
-                                    {/* 이름/메타 */}
-                                    <div style={{ textAlign: "center" }}>
-                                        <div
-                                            style={{
-                                                fontSize: 16,
-                                                fontWeight: 800,
-                                            }}
-                                        >
-                                            {c.name || `용의자 ${idx + 1}`}
-                                        </div>
-                                        <div
-                                            style={{
-                                                fontSize: 12,
-                                                color: "#333",
-                                            }}
-                                        >
-                                            {c.age ? `${c.age}세, ` : ""}
-                                            {c.gender || ""}
-                                            {c.gender ? ", " : ""}
-                                            {c.job || ""}
-                                        </div>
-                                        {c.outfit && (
-                                            <div
-                                                style={{
-                                                    fontSize: 12,
-                                                    color: "#333",
-                                                    marginTop: 4,
-                                                }}
-                                            >
-                                                옷차림: {c.outfit}
-                                            </div>
-                                        )}
-                                        {c.sample_line && (
-                                            <div
-                                                style={{
-                                                    fontSize: 12,
-                                                    color: "#333",
-                                                    marginTop: 4,
-                                                }}
-                                            >
-                                                {c.sample_line}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            );
-                        })
-                    )}
-                </div>
-
-                {/* ===== 라디오: 질문 대상 선택 (무대와 동기화) ===== */}
-                <div
-                    style={{
-                        padding: "6px 10px 0",
-                        borderTop: "1px solid #eee",
-                        background: "#fff",
-                    }}
-                >
-                    <fieldset
-                        style={{
-                            border: "none",
-                            margin: 0,
-                            padding: 0,
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 16,
-                            flexWrap: "wrap",
-                        }}
-                    >
-                        <legend style={{ fontSize: 12, color: "#666" }}>
-                            질문 대상
-                        </legend>
-
-                        {/* 전체 라디오 */}
-                        <label
-                            style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: 6,
-                                padding: "4px 8px",
-                                borderRadius: 999,
-                                border: "1px solid #ddd",
-                                background:
-                                    askTarget === "ALL" ? "#eef4ff" : "#fafafa",
-                            }}
-                        >
-                            <input
-                                type="radio"
-                                name="askTarget"
-                                value="ALL"
-                                checked={askTarget === "ALL"}
-                                onChange={() => setAskTarget("ALL")}
-                            />
-                            전체
-                        </label>
-
-                        {stageChars.map((c, idx) => (
-                            <label
-                                key={idx}
-                                style={{
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    gap: 6,
-                                    padding: "4px 8px",
-                                    borderRadius: 999,
-                                    border: "1px solid #ddd",
-                                    background:
-                                        askTarget === c.name
-                                            ? "#eef4ff"
-                                            : "#fafafa",
-                                }}
-                            >
-                                <input
-                                    type="radio"
-                                    name="askTarget"
-                                    value={c.name}
-                                    checked={askTarget === c.name}
-                                    onChange={() => {
-                                        setAskTarget(c.name);
-                                        setSelectedChar(c); // 라디오 -> 무대 선택 동기화
-                                    }}
-                                />
-                                {c.name}
-                            </label>
-                        ))}
-                    </fieldset>
-                </div>
-
-                {/* 입력바 */}
-                <div
-                    style={{
-                        borderTop: "1px solid #eee",
-                        padding: 10,
-                        background: "#fff",
-                    }}
-                >
-                    <div style={{ display: "flex", gap: 8 }}>
-                        <input
-                            value={input}
-                            onChange={(e) => setInput(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                            placeholder={
-                                askTarget === "ALL"
-                                    ? "모든 용의자에게 물어봅니다"
-                                    : selectedChar
-                                    ? `${selectedChar.name}에게 질문을 입력하세요`
-                                    : "먼저 질문 대상을 선택하세요"
-                            }
-                            style={{
-                                flex: 1,
-                                padding: "12px 14px",
-                                borderRadius: 10,
-                                border: "1px solid #ccc",
-                            }}
-                            disabled={
-                                (askTarget !== "ALL" && !selectedChar) || asking
-                            }
-                        />
-                        <button
-                            onClick={handleAsk}
-                            disabled={
-                                !input.trim() ||
-                                (askTarget !== "ALL" && !selectedChar) ||
-                                asking
-                            }
-                        >
-                            {asking ? "질문 중..." : "질문하기"}
-                        </button>
-                    </div>
-
-                    {/* 수동 단서 추가(선택) */}
-                    {content?.evidence && content.evidence.length > 0 && (
-                        <div
-                            style={{
-                                marginTop: 6,
-                                display: "flex",
-                                alignItems: "center",
-                                gap: 8,
-                            }}
-                        >
-                            <span style={{ fontSize: 12, color: "#666" }}>
-                                단서 수동 추가:
-                            </span>
-                            <select
-                                onChange={(e) => {
-                                    const val = e.target.value;
-                                    if (val) {
-                                        addCollectedManually(val);
-                                        e.currentTarget.value = "";
-                                    }
-                                }}
-                                defaultValue=""
-                            >
-                                <option value="">선택</option>
-                                {content.evidence
-                                    .filter((ev) => !collected.includes(ev.id))
-                                    .map((ev) => (
-                                        <option key={ev.id} value={ev.id}>
-                                            {ev.name}
-                                        </option>
-                                    ))}
-                            </select>
-                        </div>
-                    )}
-                </div>
-            </main>
-
-            {/* =========== 우측: 대화로그 =========== */}
-            <aside
-                style={{
-                    display: "grid",
-                    gridTemplateRows: "auto auto 1fr",
-                    border: "1px solid #ddd",
-                    borderRadius: 12,
-                    background: "#fff",
-                    overflow: "hidden",
+            {/* 무대 */}
+            <Stage
+                stageChars={stageChars}
+                selectedChar={selectedChar}
+                askTarget={askTarget}
+                bubble={bubble}
+                onSelect={(c) => {
+                    setSelectedChar(c);
+                    setAskTarget(c.name);
                 }}
-            >
-                {/* 헤더 */}
-                <div
-                    style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        padding: "8px 10px",
-                        borderBottom: "1px solid #eee",
-                        background: "#f8f8f8",
-                    }}
-                >
-                    <h4 style={{ margin: 0 }}>대화 로그</h4>
-                </div>
+            />
 
-                {/* 필터: 세그먼트 버튼 */}
-                <div
-                    style={{
-                        padding: 8,
-                        borderBottom: "1px solid #eee",
-                        background: "#fafbff",
-                    }}
-                >
-                    <div
-                        style={{
-                            display: "flex",
-                            gap: 6,
-                            flexWrap: "wrap",
-                            background: "#eff3ff",
-                            padding: 4,
-                            borderRadius: 999,
-                        }}
-                    >
-                        {["ALL", ...characters.map((c) => c.name)].map(
-                            (label) => {
-                                const active = logFilter === label;
-                                return (
-                                    <button
-                                        key={label}
-                                        onClick={() => setLogFilter(label)}
-                                        style={{
-                                            padding: "6px 12px",
-                                            borderRadius: 999,
-                                            border: active
-                                                ? "1px solid #4674ff"
-                                                : "1px solid transparent",
-                                            background: active
-                                                ? "#fff"
-                                                : "transparent",
-                                            fontWeight: active ? 700 : 500,
-                                            cursor: "pointer",
-                                        }}
-                                    >
-                                        {label === "ALL" ? "전체" : label}
-                                    </button>
-                                );
-                            }
-                        )}
-                    </div>
-                </div>
+            {/* 하단 질문 패널 */}
+            <AskPanel
+                stageChars={stageChars}
+                askTarget={askTarget}
+                setAskTarget={setAskTarget}
+                selectedChar={selectedChar}
+                setSelectedChar={setSelectedChar}
+                input={input}
+                setInput={setInput}
+                asking={asking}
+                onAsk={handleAsk}
+                onEnterKey={handleKeyDown}
+            />
 
-                {/* 로그 목록 */}
-                <div style={{ padding: 12, overflowY: "auto" }}>
-                    {/* 고정: 샘플대사(첫번째 말풍선 역할, 필터 적용) */}
-                    {pinnedSamples.length > 0 && (
-                        <div style={{ marginBottom: 10 }}>
-                            {pinnedSamples.map((c) => (
-                                <div
-                                    key={`pinned_${c.name}`}
-                                    style={{ marginBottom: 10 }}
-                                >
-                                    <div
-                                        style={{ fontSize: 11, color: "#999" }}
-                                    >
-                                        · {c.name} (샘플)
-                                    </div>
-                                    <div
-                                        style={{
-                                            display: "inline-block",
-                                            maxWidth: 640,
-                                            padding: "8px 12px",
-                                            borderRadius: 10,
-                                            border: "1px solid #ddd",
-                                            background: "#fafafa",
-                                        }}
-                                    >
-                                        <b>{c.name}</b>: {c.sample_line}
-                                    </div>
-                                </div>
-                            ))}
-                            <hr
-                                style={{
-                                    border: "none",
-                                    borderTop: "1px dashed #e5e7eb",
-                                    margin: "8px 0 4px",
-                                }}
-                            />
-                        </div>
-                    )}
+            {/* 대화로그: 창모드/도킹 */}
+            {chatWindowed ? (
+                <ChatLogWindow
+                    winPos={winPos}
+                    winSize={winSize}
+                    dragging={dragging}
+                    resizing={resizing}
+                    logFilter={logFilter}
+                    setLogFilter={setLogFilter}
+                    stageNames={stageChars.map((c) => c.name)}
+                    pinnedSamples={pinnedSamples}
+                    messages={filteredChat}
+                    onHeaderMouseDown={onHeaderMouseDown}
+                    onResizeMouseDown={onResizeMouseDown}
+                    applyPresetHeight={applyPresetHeight}
+                    setChatWindowed={setChatWindowed}
+                    logEndRef={logEndRef}
+                />
+            ) : (
+                <ChatLogDocked
+                    height={dockHeight}
+                    logFilter={logFilter}
+                    setLogFilter={setLogFilter}
+                    stageNames={stageChars.map((c) => c.name)}
+                    pinnedSamples={pinnedSamples}
+                    messages={filteredChat}
+                    setChatSize={setChatSize}
+                    setChatWindowed={setChatWindowed}
+                    logEndRef={logEndRef}
+                />
+            )}
 
-                    {/* 일반 로그 렌더링 */}
-                    {filteredChat.map((m) => (
-                        <div key={m.id} style={{ marginBottom: 12 }}>
-                            <div style={{ fontSize: 11, color: "#999" }}>
-                                {new Date(m.ts * 1000).toLocaleTimeString([], {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                })}{" "}
-                                · {m.suspectName}
-                            </div>
-
-                            <div
-                                style={{
-                                    display: "inline-block",
-                                    maxWidth: 640,
-                                    padding: "8px 12px",
-                                    borderRadius: 10,
-                                    border: "1px solid #ddd",
-                                    background:
-                                        m.role === "player"
-                                            ? "#eef4ff"
-                                            : "#fafafa",
-                                }}
-                            >
-                                <b>
-                                    {m.role === "player"
-                                        ? "탐정"
-                                        : m.suspectName}
-                                </b>
-                                : {m.text}
-                            </div>
-                        </div>
-                    ))}
-                    <div ref={logEndRef} />
-                </div>
-            </aside>
+            {/* 모달들 */}
+            <SummaryModal
+                open={showSummary}
+                summary={scenario?.scenSummary}
+                onClose={() => setShowSummary(false)}
+            />
+            <FloorplanModal
+                open={showFloorplan}
+                imageUrl={floorplanUrl}
+                onClose={() => setShowFloorplan(false)}
+            />
+            <NotesModal
+                open={showNotes}
+                notes={notes}
+                onChange={(e) => {
+                    setNotes(e.target.value);
+                    localStorage.setItem(NOTE_KEY, e.target.value);
+                }}
+                onReset={() => {
+                    setNotes("");
+                    localStorage.setItem(NOTE_KEY, "");
+                }}
+                onClose={() => setShowNotes(false)}
+            />
         </div>
     );
 }

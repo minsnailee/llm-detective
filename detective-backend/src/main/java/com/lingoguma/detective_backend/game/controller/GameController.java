@@ -139,7 +139,7 @@ public class GameController {
             npcLog.put("speaker", "NPC");
             npcLog.put("suspect", suspectName);
             npcLog.put("suspectId", suspectId);
-            npcLog.put("message", "[용의자:" + suspectName + "] " + answerText);
+            npcLog.put("message", answerText);
             npcLog.put("meta", Map.of(
                     "mirroredTriggerLevel", triggerMeta.getOrDefault("triggerLevel", "L1")
             ));
@@ -229,6 +229,40 @@ public class GameController {
             analyzeReq.setFinalAnswer(req.getAnswerJson());
             analyzeReq.setTimings(req.getTimings());
             analyzeReq.setEngine("hf");
+
+            // [ADD] 정답 메타(goldAnswer) 구성
+            @SuppressWarnings("unchecked")
+            Map<String, Object> answer = (Map<String, Object>) content.getOrDefault("answer", Map.of());
+            String realCulpritId = (String) answer.getOrDefault("culprit", null);
+
+            // 범인 이름 찾아주기
+            String culpritName = null;
+            if (realCulpritId != null) {
+                culpritName = characters.stream()
+                        .filter(c -> realCulpritId.equals(String.valueOf(c.get("id"))))
+                        .map(c -> String.valueOf(c.getOrDefault("name","")))
+                        .findFirst().orElse(null);
+            }
+
+            // 정답 핵심증거 id 리스트
+            java.util.List<String> keyEvidenceIds = new java.util.ArrayList<>();
+            {
+                @SuppressWarnings("unchecked")
+                java.util.List<Object> ke = (java.util.List<Object>) answer.getOrDefault("key_evidence", java.util.List.of());
+                for (Object o : ke) keyEvidenceIds.add(String.valueOf(o));
+            }
+
+            String motive = String.valueOf(answer.getOrDefault("motive",""));
+            String method = String.valueOf(answer.getOrDefault("method",""));
+
+            Map<String,Object> gold = new java.util.HashMap<>();
+            gold.put("culpritId", realCulpritId);
+            gold.put("culpritName", culpritName);
+            gold.put("motive", motive);
+            gold.put("method", method);
+            gold.put("keyEvidenceIds", keyEvidenceIds);
+
+            analyzeReq.setGoldAnswer(gold); // NLP로 함께 전달
 
             // 3. FastAPI 호출
             NlpAnalyzeResponse analyzeResp = null;
@@ -466,7 +500,7 @@ public class GameController {
           .append("1) 항상 위 말투와 성격을 유지.\n")
           .append("2) 플레이어 최신 질문에 증거ID/이름 또는 특정 시간·장소가 있으면 L2/L3로 공개 단계 상향.\n")
           .append("3) 불리한 질문일수록 짧고 방어적으로. 자백이나 최종 결론 제시는 금지.\n")
-          .append("4) 한 번의 답변은 2~5문장 이내로 간결히. 질문이 모호하면 되물어라.\n");
+          .append("4) 한 번의 답변은 2~4문장 이내로 간결히. 질문이 모호하면 되물어라.\n");
         return sb.toString();
     }
 

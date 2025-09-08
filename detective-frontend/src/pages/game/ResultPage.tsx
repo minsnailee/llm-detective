@@ -195,7 +195,7 @@ export default function ResultPage() {
     const evidenceLabel = (id: string) => evidenceMap.get(id)?.name || id;
 
     // ─────────────────────────────────────────────
-    // 📝 서술형 미리보기 (입력값을 자연스럽게 엮어 보여줌)
+    // 서술형 미리보기 (입력값을 자연스럽게 엮어 보여줌)
     // ─────────────────────────────────────────────
     const narrative = useMemo(() => {
         const lines: string[] = [];
@@ -393,7 +393,7 @@ export default function ResultPage() {
                     }}
                     title="보고서 작성에 소요 중"
                 >
-                    📝 보고서 {formatTime(reportSeconds)}
+                    보고서 {formatTime(reportSeconds)}
                 </span>
                 {title && (
                     <span
@@ -549,7 +549,7 @@ export default function ResultPage() {
                         gap: 8,
                     }}
                 >
-                    📒 사건수첩(메모) — 플레이 중 작성
+                    사건수첩(메모) — 플레이 중 작성
                 </div>
                 {memoText?.trim() ? (
                     <div
@@ -603,7 +603,7 @@ export default function ResultPage() {
                         gap: 8,
                     }}
                 >
-                    📝 서술형 미리보기
+                    서술형 미리보기
                     <button
                         onClick={copyPreview}
                         style={{ marginLeft: "auto" }}
@@ -638,7 +638,7 @@ export default function ResultPage() {
                     style={{ padding: "10px 20px", fontWeight: 800 }}
                     title={!selectedCulprit ? "범인을 먼저 선택하세요" : "제출"}
                 >
-                    {submitting ? "제출 중..." : "✅ 최종 보고 제출"}
+                    {submitting ? "제출 중..." : "최종 보고 제출"}
                 </button>
             </div>
 

@@ -1,3 +1,4 @@
+import type { FC, ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { api } from "../../shared/api/client";
 import { useAuth } from "../../store/auth.store";
@@ -27,8 +28,10 @@ import { useAuth } from "../../store/auth.store";
  *     백엔드의 트리거 탐지가 더 잘 작동합니다.
  *
  * • 이미지 업로드 정책(이번 버전):
- *   - 파일 선택 시 서버에 업로드하지 않습니다(미리보기만 blob: URL).
+ *   - 파일 선택 시 서버에 업로드하지 않습니다(미리보기만 blob: URL 또는 기존 URL).
  *   - 제출 버튼을 눌렀을 때만 /media/upload 로 업로드 → 받은 URL을 contentJson에 주입하여 저장합니다.
+ * • “JSON 불러오기” 기능:
+ *   - contentJson 전체를 붙여넣고 가져오면 폼에 역주입됩니다.
  * ============================================
  */
 
@@ -149,12 +152,29 @@ async function uploadFileToServer(file: File): Promise<string> {
     return res.data;
 }
 
+// ===== JSON Import Helpers =====
+function toStr(v: any, def = ""): string {
+    return typeof v === "string" ? v : def;
+}
+function toNum(v: any, def = 0): number {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : def;
+}
+function toArr<T = any>(v: any): T[] {
+    return Array.isArray(v) ? (v as T[]) : [];
+}
+function idNumFrom(pattern: RegExp, s?: string | null): number | null {
+    if (!s || typeof s !== "string") return null;
+    const m = s.match(pattern);
+    return m && m[1] ? Number(m[1]) : null;
+}
+
 export default function ExpertScenarioPage() {
     const { user } = useAuth();
 
     // ===== 상수 =====
-    const SUMMARY_MAX = 200; // 리스트/검색용 문장
-    const CASE_SUMMARY_MAX = 120; // LLM 프롬프트용 짧은 요약
+    const SUMMARY_MAX = 300; // 리스트/검색용 문장
+    const CASE_SUMMARY_MAX = 300; // LLM 프롬프트용 짧은 요약
     const CASE_SUMMARY_WARN = 100;
 
     // ===== Meta =====
@@ -205,7 +225,7 @@ export default function ExpertScenarioPage() {
 
     // 캐릭터 이미지: 파일 선택만 하고 제출 시 업로드
     const [pendingCharImages, setPendingCharImages] = useState<
-        Record<string, { file: File; preview: string }>
+        Record<string, { file?: File; preview: string }>
     >({});
 
     // ===== Evidence / Locations / Timeline =====
@@ -243,11 +263,11 @@ export default function ExpertScenarioPage() {
 
     // ===== Map Images (배경/도면) - 파일 선택만, 제출 시 업로드 =====
     const [pendingMapBg, setPendingMapBg] = useState<{
-        file: File;
+        file?: File;
         preview: string;
     } | null>(null);
     const [pendingFloorplan, setPendingFloorplan] = useState<{
-        file: File;
+        file?: File;
         preview: string;
     } | null>(null);
 
@@ -425,7 +445,7 @@ export default function ExpertScenarioPage() {
     const removeRule = (i: number) =>
         setRules(rules.filter((_, idx) => idx !== i));
 
-    // ===== Build contentJson (미리보기용: blob 프리뷰 반영) =====
+    // ===== Build contentJson (미리보기용: blob/URL 프리뷰 반영) =====
     const culpritId = useMemo(
         () => `suspect_${culpritIndex + 1}`,
         [culpritIndex]
@@ -453,7 +473,7 @@ export default function ExpertScenarioPage() {
                 mission: c.mission || "자신의 무고함을 주장하라",
                 outfit: c.outfit || "",
                 sample_line: c.sample_line || "",
-                // 미리보기엔 blob: 프리뷰를 넣고, 제출 시 실제 URL로 치환됩니다.
+                // 미리보기엔 blob: 프리뷰 또는 기존 URL을 넣고, 제출 시 실제 URL로 치환됩니다.
                 image: pending?.preview || c.image || undefined,
             };
         });
@@ -492,7 +512,7 @@ export default function ExpertScenarioPage() {
                 objective,
                 rules: rules.filter((r) => r && r.trim() !== ""),
             },
-            // 지도/도면: 미리보기엔 blob 프리뷰를, 제출 시 서버 URL로 치환
+            // 지도/도면: 미리보기엔 blob/URL 프리뷰를, 제출 시 서버 URL로 치환
             map: {
                 background: pendingMapBg?.preview || undefined,
                 floorplan: pendingFloorplan?.preview || undefined,
@@ -677,8 +697,225 @@ export default function ExpertScenarioPage() {
         }
     };
 
+    // ===== JSON Import UI & Logic =====
+    const [importText, setImportText] = useState("");
+    const [importError, setImportError] = useState<string | null>(null);
+
+    function loadContentJson(obj: any) {
+        try {
+            setImportError(null);
+
+            // ---- scenario/meta ----
+            const sc = obj?.scenario ?? {};
+            setTitle(toStr(sc.title));
+            setSummary(toStr(sc.summary));
+            setLevel(toNum(sc.difficulty, 1));
+            setObjective(
+                toStr(
+                    sc.objective,
+                    "범인, 동기, 수법을 특정하고 핵심 증거를 제시하라."
+                )
+            );
+            setRules(
+                toArr<string>(sc.rules).filter((r) => toStr(r).trim() !== "")
+            );
+
+            // ---- map(images) : URL을 미리보기로 바로 사용 ----
+            const map = obj?.map ?? {};
+            if (map.background) {
+                setPendingMapBg({ preview: String(map.background) });
+            } else {
+                setPendingMapBg(null);
+            }
+            if (map.floorplan) {
+                setPendingFloorplan({ preview: String(map.floorplan) });
+            } else {
+                setPendingFloorplan(null);
+            }
+
+            // ---- locations ----
+            const locs = toArr<any>(obj?.locations).map((loc: any) => ({
+                clientId: makeClientId("loc"),
+                name: toStr(loc.name),
+                description: toStr(loc.desc),
+            }));
+            setLocations(
+                locs.length
+                    ? locs
+                    : [
+                          {
+                              clientId: makeClientId("loc"),
+                              name: "",
+                              description: "",
+                          },
+                      ]
+            );
+
+            // ---- timeline ----
+            const tls = toArr<any>(obj?.timeline).map((t: any) => ({
+                clientId: makeClientId("time"),
+                time: toStr(t.time),
+                event: toStr(t.event),
+                subjectId: toStr(t.subjectId) || undefined,
+            }));
+            setTimeline(
+                tls.length
+                    ? tls
+                    : [
+                          {
+                              clientId: makeClientId("time"),
+                              time: "",
+                              event: "",
+                              subjectId: undefined,
+                          },
+                      ]
+            );
+
+            // ---- characters ----
+            const chars = toArr<any>(obj?.characters);
+            const charForms: CharacterForm[] = chars.map((c: any) => ({
+                clientId: makeClientId("char"),
+                name: toStr(c.name),
+                occupation: toStr(c.job),
+                personality: toStr(c.personality),
+                alibi_where: toStr(c?.alibi?.where),
+                alibi_time_range: toStr(c?.alibi?.time_range),
+                alibi_details: toStr(c?.alibi?.details),
+                mission: toStr(c.mission),
+                speech_style: toStr(c.speaking_style),
+                truth_tendency: String(
+                    Number.isFinite(Number(c.truth_bias))
+                        ? Number(c.truth_bias)
+                        : 0.7
+                ),
+                outfit: toStr(c.outfit),
+                sample_line: toStr(c.sample_line),
+                relation_tags: toArr<string>(c.relation_tags),
+                image: c.image ? String(c.image) : undefined,
+                age:
+                    typeof c.age === "number"
+                        ? String(c.age)
+                        : toStr(c.age || ""),
+                gender: ((): "남성" | "여성" | "" => {
+                    const g = toStr(c.gender);
+                    if (g === "남성" || g.toLowerCase() === "male")
+                        return "남성";
+                    if (g === "여성" || g.toLowerCase() === "female")
+                        return "여성";
+                    return "";
+                })(),
+            }));
+
+            // 최소 2명 유지
+            setCharacters(
+                charForms.length >= 2
+                    ? charForms
+                    : [
+                          {
+                              clientId: makeClientId("char"),
+                              name: "",
+                              occupation: "",
+                              personality: "",
+                              alibi_where: "",
+                              alibi_time_range: "",
+                              alibi_details: "",
+                              mission: "",
+                              speech_style: "",
+                              truth_tendency: "0.7",
+                              outfit: "",
+                              sample_line: "",
+                              relation_tags: [],
+                          },
+                          {
+                              clientId: makeClientId("char"),
+                              name: "",
+                              occupation: "",
+                              personality: "",
+                              alibi_where: "",
+                              alibi_time_range: "",
+                              alibi_details: "",
+                              mission: "",
+                              speech_style: "",
+                              truth_tendency: "0.7",
+                              outfit: "",
+                              sample_line: "",
+                              relation_tags: [],
+                          },
+                      ]
+            );
+
+            // ---- evidence/clues ----
+            const evs = toArr<any>(obj?.evidence).map((e: any, i: number) => {
+                const imp = toStr(e.importance).toLowerCase() as Importance;
+                const normalized: Importance = [
+                    "high",
+                    "medium",
+                    "low",
+                ].includes(imp)
+                    ? imp
+                    : "medium";
+                return {
+                    clientId: makeClientId("clue"),
+                    name: toStr(e.name) || `단서 ${i + 1}`,
+                    description: toStr(e.desc),
+                    importance: normalized,
+                    categories: toArr<string>(
+                        e.categories
+                    ) as EvidenceCategoryId[],
+                    keywords: toArr<string>(e.keywords),
+                } as ClueForm;
+            });
+            setClues(
+                evs.length
+                    ? evs
+                    : [
+                          {
+                              clientId: makeClientId("clue"),
+                              name: "",
+                              description: "",
+                              importance: "medium",
+                              categories: [],
+                              keywords: [],
+                          },
+                      ]
+            );
+
+            // ---- answer (범인/동기/수법/핵심증거) ----
+            const ans = obj?.answer ?? {};
+            const culpritIdStr = toStr(ans.culprit);
+            // culprit 형식 "suspect_3" → index 2
+            const cIdx = ((): number => {
+                const n = idNumFrom(/^suspect_(\d+)$/i, culpritIdStr);
+                return n && n > 0 ? n - 1 : 0;
+            })();
+            setCulpritIndex(cIdx);
+            setAnswerMotive(toStr(ans.motive));
+            setAnswerMethod(toStr(ans.method));
+            setAnswerKeyEvidenceIds(toArr<string>(ans.key_evidence));
+
+            // 캐릭터 미리보기 이미지 pending 초기화 (URL은 CharacterForm.image로 이미 반영했으니 비움)
+            setPendingCharImages({});
+        } catch (e: any) {
+            console.error(e);
+            setImportError(
+                "JSON을 해석하는 중 오류가 발생했습니다. 형식을 확인해주세요."
+            );
+        }
+    }
+
+    function handleImportJson() {
+        try {
+            const obj = JSON.parse(importText);
+            loadContentJson(obj);
+            alert("JSON 가져오기 완료! 폼에 반영되었습니다.");
+        } catch (e: any) {
+            console.error(e);
+            setImportError("JSON 파싱 실패: 올바른 JSON인지 확인해주세요.");
+        }
+    }
+
     // ===== Render helper =====
-    const Label: React.FC<{ children: any; tip?: string }> = ({
+    const Label: FC<{ children: ReactNode; tip?: string }> = ({
         children,
         tip,
     }) => (
@@ -793,7 +1030,9 @@ export default function ExpertScenarioPage() {
                 <Label>접근(Access)</Label>
                 <select
                     value={scenAccess}
-                    onChange={(e) => setScenAccess(e.target.value as any)}
+                    onChange={(e) =>
+                        setScenAccess(e.target.value as "FREE" | "MEMBER")
+                    }
                 >
                     <option value="FREE">FREE</option>
                     <option value="MEMBER">MEMBER</option>
@@ -1383,6 +1622,37 @@ export default function ExpertScenarioPage() {
                 >
                     {contentJsonPretty}
                 </pre>
+            </div>
+
+            {/* JSON Import */}
+            <h3 style={{ marginTop: 24 }}>JSON 불러오기</h3>
+            <p style={{ color: "#666", marginTop: -8 }}>
+                아래 입력창에 <code>contentJson</code> 전체(JSON)를 붙여넣고
+                “가져오기”를 누르면 폼이 채워집니다.
+            </p>
+            <textarea
+                value={importText}
+                onChange={(e) => setImportText(e.target.value)}
+                placeholder='{"scenario":{...},"characters":[...],"evidence":[...],...}'
+                style={{
+                    width: "100%",
+                    minHeight: 140,
+                    fontFamily:
+                        "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+                }}
+            />
+            <div
+                style={{
+                    display: "flex",
+                    gap: 8,
+                    alignItems: "center",
+                    marginTop: 8,
+                }}
+            >
+                <button onClick={handleImportJson}>가져오기</button>
+                {importError && (
+                    <span style={{ color: "#b00020" }}>{importError}</span>
+                )}
             </div>
 
             {/* Validation */}

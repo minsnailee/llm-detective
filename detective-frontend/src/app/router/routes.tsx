@@ -3,17 +3,18 @@ import MainLayout from "../layouts/MainLayout";
 import AuthLayout from "../layouts/AuthLayout";
 import AdminLayout from "../layouts/AdminLayout";
 
-const LobbyPage = () => <div>Lobby</div>;
+// const LobbyPage = () => <div>Lobby</div>;
 
 // const ScenarioSelectPage = () => <div>Scenario Select</div>;
+import LobbyPage from "../../pages/LobbyPage";
 import ScenarioSelectPage from "../../pages/game/ScenarioSelectPage";
 import GamePlayPage from "../../pages/game/GamePlayPage";
 import ResultPage from "../../pages/game/ResultPage";
 import AnalysisPage from "../../pages/game/AnalysisPage";
 import MyPageLayout from "../../pages/mypage/MyPageLayout";
-import LoginPage from "../../pages/LoginPage";
-import SignupPage from "../../pages/SignupPage";
-import SignupCompletePage from "../../pages/SignupCompletePage";
+import LoginPage from "../../pages/user/LoginPage";
+import SignupPage from "../../pages/user/SignupPage";
+import SignupCompletePage from "../../pages/user/SignupCompletePage";
 import AdminDashboardPage from "../../pages/admin/AdminDashboardPage";
 import GameResultDetailPage from "../../pages/mypage/GameResultDetailPage";
 import AccountInfoPage from "../../pages/mypage/AccountInfoPage";
@@ -37,8 +38,14 @@ export const router = createBrowserRouter([
                     { path: "account", element: <AccountInfoPage /> },
                     { path: "request-expert", element: <RequestExpertPage /> },
                     { path: "history", element: <GameHistoryPage /> },
-                    { path: "game-result/:resultId", element: <GameResultDetailPage /> },
-                    { path: "expert-scenario", element: <ExpertScenarioPage /> },
+                    {
+                        path: "game-result/:resultId",
+                        element: <GameResultDetailPage />,
+                    },
+                    {
+                        path: "expert-scenario",
+                        element: <ExpertScenarioPage />,
+                    },
                 ],
             },
         ],
