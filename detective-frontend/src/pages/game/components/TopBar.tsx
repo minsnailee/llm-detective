@@ -162,43 +162,6 @@ export default function TopBar({
                     >
                         <FaQuestion className="text-2xl text-white" />
                     </button>
-
-                    {showClues && (
-                        <div className="absolute left-14 top-0 w-60 max-h-60 overflow-y-auto rounded-lg shadow-lg bg-white/95 border border-gray-200 p-3 z-30">
-                            <strong className="block mb-2 text-sm">
-                                수집 단서
-                            </strong>
-                            {collected.length === 0 && (
-                                <span className="text-gray-500 text-xs">
-                                    아직 없음
-                                </span>
-                            )}
-                            {collected.map((id) => {
-                                const ev = evidenceById.get(id);
-                                const label = ev?.name || id;
-                                return (
-                                    <div
-                                        key={id}
-                                        className="flex items-center justify-between mb-1 text-sm bg-[#eef4ff] border border-[#cfe1ff] rounded px-2 py-1"
-                                    >
-                                        <span
-                                            title={ev?.desc || ""}
-                                            className="truncate"
-                                        >
-                                            {label}
-                                        </span>
-                                        <button
-                                            onClick={() => removeCollected(id)}
-                                            className="ml-2 text-red-500 font-bold"
-                                            title="제거"
-                                        >
-                                            ×
-                                        </button>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
                 </div>
             </div>
 

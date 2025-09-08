@@ -27,6 +27,8 @@ export default function AskPanel({
     onAsk,
     onEnterKey,
 }: Props) {
+    const AVATAR = 45;
+    const IMG_ZOOM = 1.4;
     const handleSelectAll = () => {
         setAskTarget("ALL");
         setSelectedChar(null);
@@ -53,7 +55,7 @@ export default function AskPanel({
                         <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap pr-1">
                             {/* 전체 (텍스트 pill) */}
                             <label
-                                className={`inline-flex items-center gap-2 h-11 w-11 justify-center rounded-full border border-[3px] text-sm noto-sans-kr-700 cursor-pointer select-none ${
+                                className={`inline-flex items-center gap-2 h-11 w-11 justify-center rounded-full border border-[2px] text-sm noto-sans-kr-700 cursor-pointer select-none ${
                                     askTarget === "ALL"
                                         ? "bg-[#bb834498] text-white/80"
                                         : "bg-[#00000063] text-white/80"
@@ -61,7 +63,7 @@ export default function AskPanel({
                                 style={{
                                     borderColor:
                                         askTarget === "ALL"
-                                            ? "#bb834498"
+                                            ? "#ffffff54"
                                             : "#ffffff63",
                                 }}
                                 title="전체"
@@ -84,14 +86,13 @@ export default function AskPanel({
                                 return (
                                     <label
                                         key={idx}
-                                        className="relative w-11 h-11 rounded-full overflow-hidden border border-[3px] cursor-pointer select-none shrink-0"
+                                        className="relative w-11 h-11 rounded-full overflow-hidden  cursor-pointer select-none shrink-0"
                                         style={{
-                                            borderColor: active
-                                                ? "#bb834498"
-                                                : "#00000063",
                                             backgroundColor: active
                                                 ? "#bb834498"
                                                 : "#00000063",
+                                            width: AVATAR,
+                                            height: AVATAR,
                                         }}
                                         title={c.name}
                                     >
@@ -110,6 +111,13 @@ export default function AskPanel({
                                                 src={img}
                                                 alt={c.name}
                                                 className="w-full h-full object-cover object-top"
+                                                style={{
+                                                    transform: `scale(${IMG_ZOOM})`,
+                                                    transformOrigin: "50% -30%", // 가운데-위쪽을 기준으로 확대
+                                                    willChange: "transform",
+                                                    backfaceVisibility:
+                                                        "hidden",
+                                                }}
                                                 draggable={false}
                                             />
                                         ) : (

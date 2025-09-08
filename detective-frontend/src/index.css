@@ -75,7 +75,8 @@ body {
 
 button,
 a,
-div {
+div,
+label {
     cursor: none !important;
 }
 

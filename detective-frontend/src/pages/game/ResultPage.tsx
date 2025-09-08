@@ -1,10 +1,5 @@
-import {
-    useState,
-    useEffect,
-    useMemo,
-    useRef,
-    type CSSProperties,
-} from "react";
+// src/pages/game/ResultPage.tsx
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
     useNavigate,
     useParams,
@@ -13,6 +8,7 @@ import {
 } from "react-router-dom";
 import { api } from "../../shared/api/client";
 import { useAuth } from "../../store/auth.store";
+import pattern from "../../assets/textures/dust.png";
 
 type ScenarioDetail = {
     scenIdx: number;
@@ -21,12 +17,7 @@ type ScenarioDetail = {
     scenLevel: number;
     contentJson?: string | any;
 };
-
-type EvidenceDoc = {
-    id: string; // "e1"
-    name: string;
-    desc?: string;
-};
+type EvidenceDoc = { id: string; name: string; desc?: string };
 
 export default function ResultPage() {
     const { scenarioId } = useParams();
@@ -35,9 +26,6 @@ export default function ResultPage() {
     const navigate = useNavigate();
     const { user } = useAuth();
 
-    // ─────────────────────────────────────────────
-    // 세션/타이머 (플레이 총 소요시간은 표시만)
-    // ─────────────────────────────────────────────
     const sessionId = Number(searchParams.get("sessionId"));
     const TIMER_KEY = sessionId
         ? `timer_session_${sessionId}`
@@ -45,17 +33,14 @@ export default function ResultPage() {
     const initialFromState = (
         location.state as { totalDuration?: number } | undefined
     )?.totalDuration;
-
     const initialFromQuery = (() => {
         const t = searchParams.get("t");
         return t && !isNaN(Number(t)) ? Number(t) : undefined;
     })();
-
     const initialFromStorage = (() => {
         const v = sessionStorage.getItem(TIMER_KEY);
         return v && !isNaN(Number(v)) ? Number(v) : undefined;
     })();
-
     const totalDuration =
         initialFromState ?? initialFromQuery ?? initialFromStorage ?? 0;
 
@@ -65,7 +50,6 @@ export default function ResultPage() {
         return `${m}:${sec}`;
     };
 
-    // 결과 작성 시간(이 페이지에서만 카운트)
     const [reportSeconds, setReportSeconds] = useState(0);
     useEffect(() => {
         const id = window.setInterval(
@@ -75,26 +59,18 @@ export default function ResultPage() {
         return () => clearInterval(id);
     }, []);
 
-    // ─────────────────────────────────────────────
-    // 시나리오/용의자/증거 + 플레이 중 수집 단서 + 메모
-    // ─────────────────────────────────────────────
     const [title, setTitle] = useState<string>("");
     const [suspects, setSuspects] = useState<string[]>([]);
     const [evidenceMap, setEvidenceMap] = useState<Map<string, EvidenceDoc>>(
         new Map()
     );
-
-    // 플레이 중 "수집한" 단서 id (스포 방지: 이 목록만 노출)
     const [collectedIds, setCollectedIds] = useState<string[]>([]);
-
-    // 사건수첩(메모) 표시용
     const NOTE_KEY = useMemo(
         () => `note_${scenarioId || "scen"}_${sessionId || "sess"}`,
         [scenarioId, sessionId]
     );
     const [memoText, setMemoText] = useState<string>("");
 
-    // 선택값
     const [selectedCulprit, setSelectedCulprit] = useState("");
     const [selectedEvidenceIds, setSelectedEvidenceIds] = useState<string[]>(
         []
@@ -102,17 +78,13 @@ export default function ResultPage() {
     const [whenText, setWhenText] = useState("");
     const [howText, setHowText] = useState("");
     const [whyText, setWhyText] = useState("");
-
-    // 확신도(선택)
     const [confidence, setConfidence] = useState(70);
 
-    // GamePlay에서 쓰던 로컬키 재사용(수집 단서)
     const CLUE_KEY = useMemo(
         () => `clues_${scenarioId || "scen"}_${sessionId || "sess"}`,
         [scenarioId, sessionId]
     );
 
-    // 시나리오 불러오기 + 수집 단서/메모 로드
     useEffect(() => {
         const run = async () => {
             try {
@@ -131,7 +103,6 @@ export default function ResultPage() {
                     }
                 }
 
-                // 등장인물(전원 용의자로 간주)
                 const chars: any[] = Array.isArray(content?.characters)
                     ? content.characters
                     : [];
@@ -140,7 +111,6 @@ export default function ResultPage() {
                     .filter((n) => !!n);
                 setSuspects(names);
 
-                // 전체 증거 맵(표기용)
                 const evs: EvidenceDoc[] = Array.isArray(content?.evidence)
                     ? content.evidence
                     : [];
@@ -150,7 +120,6 @@ export default function ResultPage() {
                 );
                 setEvidenceMap(map);
 
-                // 플레이 중 수집한 단서만 로드
                 const saved = localStorage.getItem(CLUE_KEY);
                 if (saved) {
                     try {
@@ -158,11 +127,8 @@ export default function ResultPage() {
                         if (Array.isArray(ids)) setCollectedIds(ids);
                     } catch {}
                 }
-
-                // 사건수첩(메모) 로드
                 const savedNote = localStorage.getItem(NOTE_KEY);
                 setMemoText(savedNote ?? "");
-                // 핵심 증거 선택은 초기 비어있게
                 setSelectedEvidenceIds([]);
             } catch (err) {
                 console.error("시나리오 불러오기 실패:", err);
@@ -171,78 +137,52 @@ export default function ResultPage() {
         run();
     }, [scenarioId, CLUE_KEY, NOTE_KEY]);
 
-    // ─────────────────────────────────────────────
-    // 한국어 조사 간단 처리 (이/가, 을/를)
-    // ─────────────────────────────────────────────
     const hasBatchim = (word: string) => {
         if (!word) return false;
         const ch = word[word.length - 1];
         const code = ch.charCodeAt(0);
-        if (code < 0xac00 || code > 0xd7a3) return false; // 한글 완성형만
+        if (code < 0xac00 || code > 0xd7a3) return false;
         const jong = (code - 0xac00) % 28;
         return jong !== 0;
     };
     const josaIGa = (word: string) => (hasBatchim(word) ? "이" : "가");
-    // const josaEulReul = (word: string) => (hasBatchim(word) ? "을" : "를"); // 필요 시 사용
 
-    // 칩 토글
     const toggleEvidence = (id: string) => {
         setSelectedEvidenceIds((prev) =>
             prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
         );
     };
-
     const evidenceLabel = (id: string) => evidenceMap.get(id)?.name || id;
 
-    // ─────────────────────────────────────────────
-    // 서술형 미리보기 (입력값을 자연스럽게 엮어 보여줌)
-    // ─────────────────────────────────────────────
     const narrative = useMemo(() => {
         const lines: string[] = [];
-
-        // 제목(있으면 표시)
         if (title) {
             lines.push(`【사건】 ${title}`);
             lines.push("");
         }
-
-        // 범인 문장
         if (selectedCulprit) {
             const ig = josaIGa(selectedCulprit);
             lines.push(`저는 ${selectedCulprit}${ig} 범인이라고 판단합니다.`);
         } else {
             lines.push("저는 아직 최종 범인을 확정하지 않았습니다.");
         }
-
-        // 언제/어떻게/왜를 자연스럽게 한 단락으로
-        const detailParts: string[] = [];
-        if (whenText.trim()) detailParts.push(whenText.trim());
-        if (howText.trim()) detailParts.push(howText.trim());
-        if (whyText.trim())
-            detailParts.push(`그 이유는 ${whyText.trim()} 입니다.`);
-        if (detailParts.length) {
-            lines.push(detailParts.join(" "));
-        }
-
-        // 증거 문장
+        const detail: string[] = [];
+        if (whenText.trim()) detail.push(whenText.trim());
+        if (howText.trim()) detail.push(howText.trim());
+        if (whyText.trim()) detail.push(`그 이유는 ${whyText.trim()} 입니다.`);
+        if (detail.length) lines.push(detail.join(" "));
         if (selectedEvidenceIds.length > 0) {
             const names = selectedEvidenceIds.map(evidenceLabel).join(", ");
             lines.push(`핵심 증거는 ${names}입니다.`);
         }
-
-        // 확신도 (선택)
-        if (confidence != null) {
+        if (confidence != null)
             lines.push(`현재 확신도는 약 ${confidence}% 입니다.`);
-        }
-
-        // 시간 요약
         lines.push("");
         lines.push(
             `플레이 시간 ${formatTime(totalDuration)}, 보고서 작성 ${formatTime(
                 reportSeconds
             )}.`
         );
-
         return lines.join("\n");
     }, [
         title,
@@ -265,9 +205,6 @@ export default function ResultPage() {
         }
     };
 
-    // ─────────────────────────────────────────────
-    // 제출 + 로딩 오버레이(문구 순환)
-    // ─────────────────────────────────────────────
     const [submitting, setSubmitting] = useState(false);
     const loadingLines = [
         "증거를 정리하는 중...",
@@ -279,7 +216,6 @@ export default function ResultPage() {
     ];
     const [loadingIdx, setLoadingIdx] = useState(0);
     const loadingTimerRef = useRef<number | null>(null);
-
     useEffect(() => {
         if (!submitting) return;
         loadingTimerRef.current = window.setInterval(() => {
@@ -300,7 +236,6 @@ export default function ResultPage() {
             alert("범인을 선택해주세요.");
             return;
         }
-
         const payload = {
             sessionId,
             scenIdx: Number(scenarioId),
@@ -310,382 +245,292 @@ export default function ResultPage() {
                 when: whenText,
                 how: howText,
                 why: whyText,
-                evidence_selected: selectedEvidenceIds, // 플레이어가 고른 핵심 증거만
+                evidence_selected: selectedEvidenceIds,
                 confidence,
                 report_seconds: reportSeconds,
-                report_draft: narrative, // 서술형 미리보기 전체 저장
-                memo_text: memoText, // (선택) 플레이 메모 저장
+                report_draft: narrative,
+                memo_text: memoText,
             },
             timings: {
                 total_duration: totalDuration,
-                per_turn: [] as number[], // 필요 시 채우세요
+                per_turn: [] as number[],
             },
         };
-
         setSubmitting(true);
         setLoadingIdx(0);
-
         try {
             const { data } = await api.post("/game/result", payload);
             const resultId = data?.resultId;
             if (!resultId) {
-                console.error("결과 저장 응답에 resultId가 없습니다:", data);
                 alert("결과 저장은 되었지만 resultId를 받지 못했습니다.");
                 setSubmitting(false);
                 return;
             }
-
-            // 제출 성공 시 메모 초기화
             localStorage.removeItem(NOTE_KEY);
-
-            // 분석 페이지로 이동 (로딩 오버레이는 언마운트되며 자동 종료)
             navigate(`/play/${scenarioId}/analysis?resultId=${resultId}`);
-        } catch (err: unknown) {
+        } catch (err) {
             console.error("결과 제출 실패:", err);
             alert("결과 저장에 실패했습니다. 잠시 후 다시 시도해주세요.");
             setSubmitting(false);
         }
     };
 
-    // ────────── 스타일 공통 ──────────
-    const card: CSSProperties = {
-        border: "1px solid #ddd",
-        borderRadius: 12,
-        padding: 14,
-        background: "#fff",
-    };
-
     return (
-        <div style={{ padding: 20, maxWidth: 980, margin: "0 auto" }}>
-            <h2 style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                🕵️ 탐정의 사건 수첩
-                <span style={{ fontSize: 14, color: "#666" }}>— 최종 보고</span>
-            </h2>
-
-            {/* 상단 요약 바 */}
+        <div className="relative min-h-screen w-full bg-[#0b0b0b] text-white">
+            {/* 배경/텍스처 */}
+            <div className="absolute inset-0 bg-gradient-to-b from-[#0b0b0b] via-[#121212] to-[#1a1a1a]" />
             <div
+                className="absolute inset-0 opacity-30 mix-blend-screen pointer-events-none"
                 style={{
-                    display: "flex",
-                    gap: 10,
-                    flexWrap: "wrap",
-                    marginTop: 8,
+                    backgroundImage: `url(${pattern})`,
+                    backgroundRepeat: "repeat",
                 }}
-            >
-                <span
-                    style={{
-                        padding: "6px 10px",
-                        borderRadius: 999,
-                        border: "1px solid #d0e1ff",
-                        background: "#eef4ff",
-                        fontSize: 13,
-                    }}
-                    title="플레이 단계에서 사용한 시간"
-                >
-                    ⏱️ 플레이어 시간 {formatTime(totalDuration)}
-                </span>
-                <span
-                    style={{
-                        padding: "6px 10px",
-                        borderRadius: 999,
-                        border: "1px solid #d7d7d7",
-                        background: "#f7f7f7",
-                        fontSize: 13,
-                    }}
-                    title="보고서 작성에 소요 중"
-                >
-                    보고서 {formatTime(reportSeconds)}
-                </span>
-                {title && (
-                    <span
-                        style={{
-                            padding: "6px 10px",
-                            borderRadius: 999,
-                            border: "1px solid #eee",
-                            background: "#fafafa",
-                            fontSize: 13,
-                        }}
-                    >
-                        사건: <b>{title}</b>
-                    </span>
-                )}
-            </div>
+            />
+            <div className="absolute inset-0 bg-black/40 mix-blend-multiply" />
 
-            {/* STEP 1: 범인 선택 */}
-            <section style={{ ...card, marginTop: 16 }}>
-                <div style={{ fontWeight: 800, marginBottom: 8 }}>
-                    ① 범인 지목
-                </div>
-                {suspects.length > 0 ? (
-                    suspects.map((name) => (
-                        <label
-                            key={name}
-                            style={{ display: "block", marginTop: 6 }}
+            <div className="relative mx-auto max-w-[1200px] px-6 py-8">
+                {/* 헤더/요약 바 */}
+                <div className="mb-6">
+                    <h2 className="text-3xl font-extrabold special-elite-regular tracking-wider flex items-center gap-3">
+                        🕵️ 탐정의 사건 수첩{" "}
+                        <span className="text-white/60 text-base">
+                            — 최종 보고
+                        </span>
+                    </h2>
+                    <div className="flex flex-wrap gap-2 mt-3">
+                        <span
+                            className="px-3 py-1.5 rounded-full border border-amber-300/30 bg-amber-300/10 text-sm"
+                            title="플레이 시간"
                         >
-                            <input
-                                type="radio"
-                                name="culprit"
-                                value={name}
-                                checked={selectedCulprit === name}
-                                onChange={(e) =>
-                                    setSelectedCulprit(e.target.value)
-                                }
+                            ⏱️ 플레이어 {formatTime(totalDuration)}
+                        </span>
+                        <span
+                            className="px-3 py-1.5 rounded-full border border-white/15 bg-white/5 text-sm"
+                            title="보고서 작성 시간"
+                        >
+                            보고서 {formatTime(reportSeconds)}
+                        </span>
+                        {title && (
+                            <span className="px-3 py-1.5 rounded-full border border-white/10 bg-white/5 text-sm">
+                                사건: <b className="ml-1">{title}</b>
+                            </span>
+                        )}
+                    </div>
+                </div>
+
+                {/* 책 스프레드 레이아웃 */}
+                <div className="relative grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* 중앙 책등 */}
+                    <div className="hidden md:block pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gradient-to-b from-transparent via-white/20 to-transparent" />
+
+                    {/* 왼쪽 페이지: 범인 지목 + 증거 */}
+                    <div className="space-y-4">
+                        {/* ① 범인 지목 */}
+                        <section className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-5 shadow-xl shadow-black/30">
+                            <div className="font-extrabold mb-3">
+                                ① 범인 지목
+                            </div>
+                            {suspects.length > 0 ? (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    {suspects.map((name) => (
+                                        <label
+                                            key={name}
+                                            className="flex items-center gap-2 cursor-pointer"
+                                        >
+                                            <input
+                                                type="radio"
+                                                name="culprit"
+                                                value={name}
+                                                checked={
+                                                    selectedCulprit === name
+                                                }
+                                                onChange={(e) =>
+                                                    setSelectedCulprit(
+                                                        e.target.value
+                                                    )
+                                                }
+                                                className="accent-amber-400"
+                                            />
+                                            <span className="text-white/90">
+                                                {name}
+                                            </span>
+                                        </label>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-white/70">
+                                    용의자 목록 불러오는 중...
+                                </div>
+                            )}
+                        </section>
+
+                        {/* ② 핵심 증거 (수집한 단서만) */}
+                        <section className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-5 shadow-xl shadow-black/30">
+                            <div className="font-extrabold">
+                                ② 핵심 증거 선택
+                            </div>
+                            <div className="text-xs text-white/60 mb-2">
+                                플레이 중 수집한 단서만 보입니다.
+                            </div>
+                            {collectedIds.length === 0 ? (
+                                <div className="text-white/70">
+                                    수집한 단서가 없습니다.
+                                </div>
+                            ) : (
+                                <div className="flex flex-wrap gap-2">
+                                    {collectedIds.map((id) => {
+                                        const active =
+                                            selectedEvidenceIds.includes(id);
+                                        return (
+                                            <button
+                                                key={id}
+                                                type="button"
+                                                onClick={() =>
+                                                    toggleEvidence(id)
+                                                }
+                                                title={
+                                                    evidenceMap.get(id)?.desc ||
+                                                    ""
+                                                }
+                                                className={`px-3 py-1.5 rounded-full border text-sm transition ${
+                                                    active
+                                                        ? "border-amber-300/40 bg-amber-300/10"
+                                                        : "border-white/15 bg-white/5 hover:bg-white/10"
+                                                }`}
+                                            >
+                                                {evidenceLabel(id)}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </section>
+                        {/* 메모 표시 */}
+                        <section className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-5 shadow-xl shadow-black/30">
+                            <div className="font-extrabold mb-2">
+                                사건수첩(메모)
+                            </div>
+                            {memoText?.trim() ? (
+                                <pre className="whitespace-pre-wrap rounded-xl border border-dashed border-white/20 bg-black/30 px-3 py-3 min-h-[80px]">
+                                    {memoText}
+                                </pre>
+                            ) : (
+                                <div className="text-white/70">
+                                    표시할 메모가 없습니다. (플레이 중 메모장에
+                                    작성하세요)
+                                </div>
+                            )}
+                            <div className="mt-2 text-xs text-white/60">
+                                * 제출 시 메모는 자동으로 초기화됩니다.
+                            </div>
+                        </section>
+                    </div>
+
+                    {/* 오른쪽 페이지: 서술 + 메모 + 확신도 + 미리보기 + 제출 */}
+                    <div className="space-y-4">
+                        {/* ③ 사건 서술 */}
+                        <section className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-5 shadow-xl shadow-black/30">
+                            <div className="font-extrabold mb-3">
+                                ③ 사건 서술
+                            </div>
+                            <label className="font-bold">언제?</label>
+                            <textarea
+                                placeholder="예: 오후 2시경, 열람실과 서고 사이 복도에서 일어났습니다."
+                                value={whenText}
+                                onChange={(e) => setWhenText(e.target.value)}
+                                className="mt-1 w-full min-h-[72px] rounded-lg border border-white/10 bg-black/30 px-3 py-2 outline-none focus:ring-2 focus:ring-amber-400/40"
                             />
-                            <span style={{ marginLeft: 8 }}>{name}</span>
-                        </label>
-                    ))
-                ) : (
-                    <p style={{ color: "#666", margin: 0 }}>
-                        용의자 목록 불러오는 중...
-                    </p>
-                )}
-            </section>
+                            <label className="font-bold mt-3 block">
+                                어떻게?
+                            </label>
+                            <textarea
+                                placeholder="예: CCTV 사각지대를 이용해 서고로 진입해 고서를 가방에 넣었습니다."
+                                value={howText}
+                                onChange={(e) => setHowText(e.target.value)}
+                                className="mt-1 w-full min-h-[72px] rounded-lg border border-white/10 bg-black/30 px-3 py-2 outline-none focus:ring-2 focus:ring-amber-400/40"
+                            />
+                            <label className="font-bold mt-3 block">왜?</label>
+                            <textarea
+                                placeholder="예: 고서를 처분해 빚을 갚기 위해서였습니다."
+                                value={whyText}
+                                onChange={(e) => setWhyText(e.target.value)}
+                                className="mt-1 w-full min-h-[72px] rounded-lg border border-white/10 bg-black/30 px-3 py-2 outline-none focus:ring-2 focus:ring-amber-400/40"
+                            />
+                        </section>
 
-            {/* STEP 2: 핵심 증거 (⚠️ 수집한 단서만 표시) */}
-            <section style={{ ...card, marginTop: 12 }}>
-                <div style={{ fontWeight: 800, marginBottom: 8 }}>
-                    ② 핵심 증거 선택
-                </div>
-                <div style={{ fontSize: 12, color: "#777", marginBottom: 6 }}>
-                    플레이 중 수집한 단서만 보입니다.
-                </div>
-                {collectedIds.length === 0 ? (
-                    <div style={{ color: "#777" }}>수집한 단서가 없습니다.</div>
-                ) : (
-                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        {collectedIds.map((id) => {
-                            const active = selectedEvidenceIds.includes(id);
-                            return (
+                        {/* 확신도 */}
+                        <section className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-5 shadow-xl shadow-black/30">
+                            <div className="font-extrabold mb-2">④ 확신도</div>
+                            <div className="flex items-center gap-3">
+                                <input
+                                    type="range"
+                                    min={0}
+                                    max={100}
+                                    value={confidence}
+                                    onChange={(e) =>
+                                        setConfidence(Number(e.target.value))
+                                    }
+                                    className="flex-1 accent-amber-400"
+                                />
+                                <span className="w-14 text-right font-extrabold text-amber-300">
+                                    {confidence}%
+                                </span>
+                            </div>
+                        </section>
+
+                        {/* 서술형 미리보기 + 제출 */}
+                        <section className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-5 shadow-xl shadow-black/30">
+                            <div className="flex items-center gap-2 mb-2">
+                                <div className="font-extrabold">
+                                    서술형 미리보기
+                                </div>
                                 <button
-                                    key={id}
-                                    type="button"
-                                    onClick={() => toggleEvidence(id)}
-                                    title={evidenceMap.get(id)?.desc || ""}
-                                    style={{
-                                        padding: "6px 12px",
-                                        borderRadius: 999,
-                                        border: active
-                                            ? "1px solid #4674ff"
-                                            : "1px solid #ddd",
-                                        background: active
-                                            ? "#eef4ff"
-                                            : "#fafafa",
-                                        cursor: "pointer",
-                                    }}
+                                    onClick={copyPreview}
+                                    className="ml-auto px-3 py-1.5 rounded-lg border border-white/15 bg-white/5 hover:bg-white/10 text-sm transition"
                                 >
-                                    {evidenceLabel(id)}
+                                    복사
                                 </button>
-                            );
-                        })}
+                            </div>
+                            <pre className="whitespace-pre-wrap font-mono text-[13.5px] rounded-xl border border-dashed border-white/20 bg-black/30 px-3 py-3">
+                                {narrative}
+                            </pre>
+                            <div className="mt-2 text-xs text-white/60">
+                                * 입력에 맞춰 실시간으로 변합니다. 그대로
+                                제출하셔도 됩니다.
+                            </div>
+
+                            <div className="mt-4 text-right">
+                                <button
+                                    onClick={handleSubmit}
+                                    disabled={!selectedCulprit || submitting}
+                                    className="px-4 py-2 rounded-lg border border-amber-300/40 bg-amber-300/10 hover:bg-amber-300/20 disabled:opacity-60 font-extrabold transition"
+                                    title={
+                                        !selectedCulprit
+                                            ? "범인을 먼저 선택하세요"
+                                            : "제출"
+                                    }
+                                >
+                                    {submitting
+                                        ? "제출 중..."
+                                        : "최종 보고 제출"}
+                                </button>
+                            </div>
+                        </section>
                     </div>
-                )}
-            </section>
-
-            {/* STEP 3: 사건 서술 (언제/어떻게/왜) */}
-            <section style={{ ...card, marginTop: 12 }}>
-                <div style={{ fontWeight: 800, marginBottom: 8 }}>
-                    ③ 사건 서술
                 </div>
-
-                <label
-                    style={{ display: "block", fontWeight: 700, marginTop: 4 }}
-                >
-                    언제?
-                </label>
-                <textarea
-                    placeholder="예: 오후 2시경, 열람실과 서고 사이 복도에서 일어났습니다."
-                    value={whenText}
-                    onChange={(e) => setWhenText(e.target.value)}
-                    style={{
-                        display: "block",
-                        width: "100%",
-                        minHeight: 60,
-                        marginTop: 6,
-                    }}
-                />
-
-                <label
-                    style={{ display: "block", fontWeight: 700, marginTop: 12 }}
-                >
-                    어떻게?
-                </label>
-                <textarea
-                    placeholder="예: CCTV 사각지대를 이용해 서고로 진입해 고서를 가방에 넣었습니다."
-                    value={howText}
-                    onChange={(e) => setHowText(e.target.value)}
-                    style={{
-                        display: "block",
-                        width: "100%",
-                        minHeight: 60,
-                        marginTop: 6,
-                    }}
-                />
-
-                <label
-                    style={{ display: "block", fontWeight: 700, marginTop: 12 }}
-                >
-                    왜?
-                </label>
-                <textarea
-                    placeholder="예: 고서를 처분해 빚을 갚기 위해서였습니다."
-                    value={whyText}
-                    onChange={(e) => setWhyText(e.target.value)}
-                    style={{
-                        display: "block",
-                        width: "100%",
-                        minHeight: 60,
-                        marginTop: 6,
-                    }}
-                />
-            </section>
-
-            {/* 💡 NEW: 사건수첩(메모) 표시 */}
-            <section style={{ ...card, marginTop: 12 }}>
-                <div
-                    style={{
-                        fontWeight: 800,
-                        marginBottom: 8,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                    }}
-                >
-                    사건수첩(메모) — 플레이 중 작성
-                </div>
-                {memoText?.trim() ? (
-                    <div
-                        style={{
-                            whiteSpace: "pre-wrap",
-                            border: "1px dashed #c7c7c7",
-                            borderRadius: 8,
-                            padding: 12,
-                            background: "#fcfcff",
-                            minHeight: 80,
-                        }}
-                    >
-                        {memoText}
-                    </div>
-                ) : (
-                    <div style={{ color: "#777" }}>
-                        표시할 메모가 없습니다. (플레이 중 메모장에 작성하세요)
-                    </div>
-                )}
-                <div style={{ marginTop: 6, fontSize: 12, color: "#777" }}>
-                    * 제출 시 메모는 자동으로 초기화됩니다.
-                </div>
-            </section>
-
-            {/* 선택: 확신도 */}
-            <section style={{ ...card, marginTop: 12 }}>
-                <div style={{ fontWeight: 800, marginBottom: 8 }}>④ 확신도</div>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <input
-                        type="range"
-                        min={0}
-                        max={100}
-                        value={confidence}
-                        onChange={(e) => setConfidence(Number(e.target.value))}
-                        style={{ flex: 1 }}
-                    />
-                    <span style={{ width: 48, textAlign: "right" }}>
-                        {confidence}%
-                    </span>
-                </div>
-            </section>
-
-            {/* 서술형 미리보기 (실시간) */}
-            <section style={{ ...card, marginTop: 12 }}>
-                <div
-                    style={{
-                        fontWeight: 800,
-                        marginBottom: 8,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                    }}
-                >
-                    서술형 미리보기
-                    <button
-                        onClick={copyPreview}
-                        style={{ marginLeft: "auto" }}
-                    >
-                        복사
-                    </button>
-                </div>
-                <div
-                    style={{
-                        whiteSpace: "pre-wrap",
-                        fontFamily:
-                            "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono','Courier New', monospace",
-                        border: "1px dashed #c7c7c7",
-                        borderRadius: 8,
-                        padding: 12,
-                        background: "#fcfcff",
-                    }}
-                >
-                    {narrative}
-                </div>
-                <div style={{ marginTop: 6, fontSize: 12, color: "#777" }}>
-                    * 위 미리보기는 입력에 맞춰 실시간으로 변합니다. 따로
-                    붙여넣을 필요 없이 그대로 제출하셔도 됩니다.
-                </div>
-            </section>
-
-            {/* 제출 */}
-            <div style={{ marginTop: 16, textAlign: "right" }}>
-                <button
-                    onClick={handleSubmit}
-                    disabled={!selectedCulprit || submitting}
-                    style={{ padding: "10px 20px", fontWeight: 800 }}
-                    title={!selectedCulprit ? "범인을 먼저 선택하세요" : "제출"}
-                >
-                    {submitting ? "제출 중..." : "최종 보고 제출"}
-                </button>
             </div>
 
             {/* 풀스크린 로딩 오버레이 */}
             {submitting && (
-                <div
-                    style={{
-                        position: "fixed",
-                        inset: 0,
-                        background: "rgba(0,0,0,0.6)",
-                        display: "grid",
-                        placeItems: "center",
-                        zIndex: 9999,
-                    }}
-                >
-                    <div
-                        style={{
-                            width: 440,
-                            maxWidth: "90vw",
-                            background: "#111",
-                            color: "#fff",
-                            borderRadius: 16,
-                            padding: "22px 20px",
-                            border: "1px solid #333",
-                            boxShadow: "0 12px 28px rgba(0,0,0,0.45)",
-                            textAlign: "center",
-                        }}
-                    >
-                        <div
-                            style={{
-                                width: 48,
-                                height: 48,
-                                borderRadius: "50%",
-                                border: "4px solid #3b82f6",
-                                borderTopColor: "transparent",
-                                margin: "0 auto 12px",
-                                animation: "spin 1s linear infinite",
-                            }}
-                        />
-                        <h3 style={{ margin: "6px 0 8px" }}>분석 중입니다</h3>
-                        <p style={{ margin: 0, opacity: 0.85 }}>
+                <div className="fixed inset-0 grid place-items-center bg-black/60 z-[9999]">
+                    <div className="w-[440px] max-w-[90vw] rounded-2xl border border-white/10 bg-[#111] text-white p-6 shadow-2xl shadow-black/60 text-center">
+                        <div className="w-12 h-12 rounded-full border-4 border-amber-400 border-t-transparent mx-auto mb-3 animate-spin" />
+                        <h3 className="text-lg font-extrabold mb-1">
+                            분석 중입니다
+                        </h3>
+                        <p className="text-white/85">
                             {loadingLines[loadingIdx]}
                         </p>
-
-                        <style>
-                            {`@keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}`}
-                        </style>
                     </div>
                 </div>
             )}
