@@ -39,6 +39,7 @@ build/
 *.yml
 *.properties
 !application-sample.yml
+!application-sample.properties
 
 # OS, 캐시, 로그
 .DS_Store
